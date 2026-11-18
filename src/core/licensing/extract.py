@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import xml.etree.ElementTree as ET
@@ -161,8 +160,7 @@ def to_observations(rows: list[dict[str, str]], check: LicenseCheck) -> list[Lic
         equipment_uid = carrier.equipment_uid if carrier_type == CarrierType.EQUIPMENT else ""
         serial = row.get("license_serial", "")
         if serial:
-            # Follows the license wherever it moves; a digest, since the serial itself is secret.
-            key = f"{check.key}:serial:{hashlib.sha256(serial.encode('utf-8')).hexdigest()[:24]}"
+            key = f"{check.key}:serial:{serial}"[:255]  # follows the license wherever it moves
         else:
             product = row.get("product_code") or row["product_name"]
             carrier_key = carrier_id or equipment_uid or carrier_type

@@ -90,9 +90,14 @@ section 5). The agent implements a closed catalog of read-only probes; a check i
 
 **Push by license serial.** The agent does not decide which Lab Mango license a result belongs to:
 it pushes every license it finds with its `license_serial` (the tool's own license ID) and carrier;
-the backend finds the `License` whose `identifier` is that serial, compares expiry, version and
-carrier, and updates it (backend proposal, section 5.4). The observation key is a digest of the
+the backend finds the `License` whose `serial_number` is that serial, compares expiry, version and
+carrier, and updates it (backend proposal, section 5.4). The observation key is built from the
 serial, so a license keeps its identity when its dongle or device moves to another computer.
+
+**License keys are never read.** `serial_number` (visible) and `identifier` (the secret license key)
+are separate fields in Lab Mango. The agent only reports what identifies and describes a license;
+reading activation keys from tools or files is out of scope by design: they are not needed to match,
+and copying them to a server would widen who can steal them.
 Licenses without a serial fall back to product-code matching on the backend.
 
 The backend updates a license only if the report is plausible for this computer: the carrier is this
@@ -127,7 +132,7 @@ failure; only an `ok` run replaces the license set.
 | `ExpirationDateString` | `expires_at`: when the activation ends (reactivatable licenses) |
 | `FinalExpirationDateString` | `final_expires_at`; `9999-12-31` = perpetual |
 | `BindingType` + `DeviceName` | carrier: DEVICE → device, DONGLE → dongle, PC → computer; hardware ID `vector_device` = `DeviceName` |
-| `VectorLicenseId` | `license_serial`: the backend's match key for `License.identifier`; never logged or shown |
+| `VectorLicenseId` | `license_serial`: the backend's match key for `License.serial_number` (not secret) |
 | `IsReactivatable` | warning text: "Reactivate it in the vendor's license tool." |
 
 The output declares `encoding="Codepage - 437"` (not a valid XML encoding); `encoding: auto` maps it

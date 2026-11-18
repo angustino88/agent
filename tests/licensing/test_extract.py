@@ -23,9 +23,9 @@ def test_vector_license_client_output_through_the_generic_engine():
     assert lic.carrier_hardware_id == HardwareId("vector_device", "007113-585343")
     assert lic.expires_at == datetime(2027, 4, 9, 23, 59, 59)
     assert lic.final_expires_at is None and lic.is_reactivatable
-    assert lic.license_serial == "55100045010" and "55100045010" not in lic.describe()
-    assert lic.observation_key.startswith("vector-license-client:serial:")
-    assert "55100045010" not in lic.observation_key  # keyed by a digest of the serial, never the serial
+    assert lic.license_serial == "55100045010"
+    assert lic.observation_key == "vector-license-client:serial:55100045010"
+    assert lic.describe() == "CANalyzer PRO v15.0 on 007113-585343 (device), serial 55100045010, until 2027-04-09"
 
 
 def test_pc_bound_vector_license_has_the_computer_as_carrier():

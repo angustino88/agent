@@ -55,7 +55,7 @@ TARGET_FIELDS = (
     "expires_at",
     "final_expires_at",
     "carrier_id",
-    "license_serial",  # the license's serial / ID: the backend matches it to License.identifier
+    "license_serial",  # the license's serial / ID: the backend matches it to License.serial_number
     "is_reactivatable",  # "true"/"yes"/"1" -> the user can renew it themselves (warning text)
     "carrier_type",  # with carrier type "mapped": the tool's own value, translated by carrier.type_map
 )

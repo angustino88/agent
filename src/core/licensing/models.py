@@ -51,8 +51,8 @@ class LicenseObservation:
     final_expires_at: Optional[datetime]  # None = perpetual
     max_version: str = ""
     is_reactivatable: bool = False
-    license_serial: str = ""  # the license's serial / ID from the tool; the backend's match key
-    # (License.identifier). Secret: never logged, shown or put in observation keys.
+    license_serial: str = ""  # the license's serial / ID from the tool (e.g. Vector license ID); the
+    # backend's match key (License.serial_number). Not secret. License keys are never collected.
     carrier_equipment_uid: str = ""  # for CarrierType.EQUIPMENT: the unit configured on the check
 
     def state(self, now: datetime) -> str:
@@ -72,10 +72,11 @@ class LicenseObservation:
         )
 
     def describe(self) -> str:
-        """Safe for logs and the UI (no license ID)."""
+        """For logs and the UI."""
         until = f"{self.expires_at:%Y-%m-%d}" if self.expires_at else "no expiry"
         version = f" v{self.max_version}" if self.max_version else ""
-        return f"{self.product_name}{version} on {self.carrier_label} ({self.carrier_type}), until {until}"
+        serial = f", serial {self.license_serial}" if self.license_serial else ""
+        return f"{self.product_name}{version} on {self.carrier_label} ({self.carrier_type}){serial}, until {until}"
 
 
 def expiring(licenses: Iterable[LicenseObservation], now: datetime, within_days: int) -> list[LicenseObservation]:
