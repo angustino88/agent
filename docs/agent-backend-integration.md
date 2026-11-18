@@ -67,7 +67,7 @@ Redirects are never followed. Implementation: `src/core/agent_api/signing.py`, `
 | Booking follow-up | same GET every 5 min | `validate`; not eligible means the booking ended (`SessionTimer`) |
 | Extend booking | `PATCH /api/labs/lab-bookings/{id}` | `POST /agent/bookings/actions/extend` with readable refusal reasons (`BookingUpdateCtrl`) |
 | End booking | `PATCH ... status=done` | `POST /agent/bookings/actions/complete` |
-| USB devices | filter list from `/api/labs/lab-computers`, events to `/api/labs/lab-monitoring` | every USB device with its serial, as complete snapshots to `POST /agent/device-observations/actions/report`; the backend matches serials to equipment (`UsbDeviceCollector`, `DeviceObservationReporter`) |
+| Monitored devices | filter list from `/api/labs/lab-computers`, events to `/api/labs/lab-monitoring` | the policy's `expected_devices` (watch list, registered PnP IDs) → only those devices, as complete snapshots to `POST /agent/device-observations/actions/report` with `hardware_ids`; the backend matches registered IDs (`PnpDeviceCollector`, `DeviceObservationReporter`) |
 | Monitoring policy | — | `GET /agent/monitoring-policy` every 10 min with ETag (`MonitoringCtrl`) |
 | Backend available | `GET <backend root>` | `GET /agent/info` |
 
@@ -77,19 +77,24 @@ identified by code only.
 
 ### Device observations
 
-Each report is a complete snapshot of the connected top-level USB devices (`collector_key = "usb"`).
-The backend disconnects devices a complete snapshot omits, and complete snapshots may skip sequence
-numbers. Therefore:
+Equipment is recognised by the **PnP device instance ID** a coordinator registered on the unit
+(`EquipmentHardwareId`), never by the inventory's `serial_number`. The monitoring policy lists the
+computer's expected devices with their IDs; the agent scans `Win32_PnPEntity` every 5 s and reports
+only those devices (collector `pnp`), as complete snapshots:
 
-- a snapshot is sent when the device set changes (after 3 matching scans, 5 s apart), and otherwise
-  every half `freshness_seconds` (60 s with today's policy) to keep connections fresh;
-- the sequence is the wall clock in milliseconds, never below the last one sent, so it keeps
-  increasing after a reinstall;
-- each batch (`Idempotency-Key` + body) is stored in `agent\observations_usb.json` before sending and
-  resent byte-identical until acknowledged; `409` or `422` drops it and the next cycle sends a new
-  snapshot;
-- `observation_key` is `usb:` + the Windows instance id; Windows-generated instance ids (containing
-  `&`) are not serial numbers and are reported with an empty serial.
+- a change counts after 3 matching scans; the first scan after a new watch list is the baseline,
+  so no false "disconnected" is sent while debouncing;
+- unchanged devices are resent every half `freshness_seconds` (60 s) to keep them fresh;
+- the sequence is the wall clock in milliseconds, never below the last one sent;
+- each batch (`Idempotency-Key` + body) is stored in `agent\observations_pnp.json` before sending
+  and resent byte-identical until acknowledged;
+- the policy (watch list) is re-read every 2 minutes; `304` when unchanged.
+
+**Registering a new device:** in the Device Scan dialog an administrator sees each device's PnP
+instance path (live plug/unplug log) and can **Push** a discovery snapshot (collector `discovery`) of
+the connected USB devices that are not on the watch list. They appear in Lab Monitoring; **Link**
+registers the device's PnP ID on the chosen unit, and the next policy sync puts it on the watch list.
+Discovery rows never count as presence, reporting or alerts.
 
 ## Removed, because the backend has no agent route
 
@@ -97,7 +102,7 @@ numbers. Therefore:
 |---|---|
 | Computer information (OS, IP, disks, system info) | Not reported. Backend `PATCH /agent/equipment/state` is proposed only; re-add when it ships |
 | Storage quota upload | Still measured; written to `<sharing root>\.system\quota\quota_report.json` only |
-| USB filter list, audit events | Replaced by device observations |
+| USB filter list (`monitored_devices` JSON), audit events | Replaced by registered PnP IDs and expected devices |
 | Admin list from `/api/user-groups` | `login.admin_usernames` in `app_settings.yml` |
 | OTP via the backend's `/api/send-otp` | OTP is sent through the service gateway only |
 | Shared API key | Removed; the backend URL comes from the enrolled identity |
