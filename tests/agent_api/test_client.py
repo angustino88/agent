@@ -181,3 +181,16 @@ def test_observations_send_idempotency_key_and_detect_replay(client, session):
 def test_session_log_200_means_already_stored(client, session):
     session.queue(200, {"data": {"id": 3, "event_key": "e"}})
     assert client.record_session_log({"event_key": "e"}).created is False
+
+
+def test_license_checks_fetch_with_etag_and_report_with_idempotency_key(client, session, key):
+    session.queue(200, {"data": {"checks": [{"key": "a"}]}}, {"ETag": '"v1"'}).queue(304)
+    assert client.get_license_checks() == ([{"key": "a"}], '"v1"')
+    assert client.get_license_checks('"v1"') == (None, '"v1"')
+    assert session.sent[1].headers["If-None-Match"] == '"v1"'
+    session.queue(201, {"data": {"status": "ok"}})
+    client.report_license_check("vector-license-client", {"status": "ok"}, "11111111-1111-1111-1111-111111111111")
+    sent = session.sent[2]
+    assert sent.url.endswith("/agent/license-checks/vector-license-client/actions/report")
+    assert sent.headers["Idempotency-Key"] == "11111111-1111-1111-1111-111111111111"
+    _verify(sent, key, "/agent/license-checks/vector-license-client/actions/report")

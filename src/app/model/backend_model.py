@@ -10,6 +10,7 @@ from __future__ import annotations
 import ipaddress
 import os
 import threading
+import time
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -30,6 +31,7 @@ from src.core.agent_api import (
     load_credentials,
 )
 from src.core.agent_api import errors as agent_errors
+from src.core.licensing import CheckResult, result_body
 from src.core.monitoring import DeviceObservationReporter
 from src.mvc.base_model import BaseModel
 from src.mvc.task_schedule import task
@@ -42,6 +44,10 @@ class BackendModel(BaseModel):
         self._client: Optional[AgentApiClient] = None
         self._session_logs: Optional[SessionLogOutbox] = None
         self._lock = threading.Lock()
+        self._capabilities: tuple[str, ...] = ()
+        self._capabilities_read_at = 0.0
+        self._license_checks_etag = ""
+        self._pending_license_reports: dict[str, tuple[str, dict]] = {}  # check key -> (idempotency key, body)
 
     def init(self):
         self._app_config = self.model.config_model.app_config
@@ -218,6 +224,54 @@ class BackendModel(BaseModel):
         if not result.ok:
             raise RuntimeError("Booking could not be extended (no running booking on this computer)")
         return _booking(result, BookingStatus.IN_PROGRESS)
+
+    # ------------------------------------------------------------------ capabilities
+
+    CAPABILITIES_TTL_S = 3600
+
+    def supports(self, capability: str) -> bool:
+        """Whether this backend serves a capability (``GET /agent/info``, cached for an hour)."""
+        if time.monotonic() - self._capabilities_read_at > self.CAPABILITIES_TTL_S or not self._capabilities:
+            try:
+                self._capabilities = self._client.get_info().capabilities
+                self._capabilities_read_at = time.monotonic()
+            except agent_errors.AgentApiError:
+                return capability in self._capabilities
+        return capability in self._capabilities
+
+    # ------------------------------------------------------------------ license checks
+
+    def fetch_license_checks(self) -> Optional[list]:
+        """Raw check configurations for this computer, ``None`` when unchanged since the last fetch."""
+        items, self._license_checks_etag = self._enrolled_client().get_license_checks(self._license_checks_etag)
+        return items
+
+    def report_license_check(self, result: CheckResult) -> bool:
+        """Send one check run (a newer run replaces an unsent older one); retried on the next call."""
+        body = result_body(result, sequence=int(time.time() * 1000))
+        with self._lock:
+            self._pending_license_reports[result.check_key] = (str(uuid.uuid4()), body)
+        return self.flush_license_reports()
+
+    def flush_license_reports(self) -> bool:
+        if not self.is_enrolled:
+            return False
+        with self._lock:
+            pending = dict(self._pending_license_reports)
+        ok = True
+        for check_key, (idempotency_key, body) in pending.items():
+            try:
+                self._client.report_license_check(check_key, body, idempotency_key)
+            except (agent_errors.ValidationFailed, agent_errors.Conflict) as e:
+                self._logger.warning(f"[Licenses] Report for {check_key} rejected: {e}")
+            except agent_errors.AgentApiError as e:
+                self._logger.info(f"[Licenses] Report for {check_key} deferred: {e}")
+                ok = False
+                continue
+            with self._lock:
+                if self._pending_license_reports.get(check_key, (None,))[0] == idempotency_key:
+                    del self._pending_license_reports[check_key]
+        return ok
 
     # ------------------------------------------------------------------ device monitoring
 

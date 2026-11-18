@@ -43,6 +43,9 @@ APP_SETTINGS_SCHEMA = {
         "schema": {
             "warn_days": {"type": "integer", "min": 1, "required": False},
             "vector_license_client": {"type": "string", "required": False},
+            "builtin_checks": {"type": "list", "schema": {"type": "string"}, "required": False},
+            "allowed_roots": {"type": "list", "schema": {"type": "string"}, "required": False},
+            "trusted_paths": {"type": "list", "schema": {"type": "string"}, "required": False},
         },
         "required": False,
     },
@@ -73,10 +76,14 @@ APP_SETTINGS_DEFAULT = {
     "login": {
         "admin_usernames": ["adminlab"],
     },
-    # Tool licenses on this computer and connected hardware (read-only).
+    # License checks. The web app configures them per computer; these local settings only bound
+    # what the agent may run, and choose built-in checks while the backend serves none.
     "licenses": {
         "warn_days": 30,
         "vector_license_client": "C:\\Program Files\\Vector License Client\\Vector.LicenseClient.exe",
+        "builtin_checks": ["vector-license-client"],
+        "allowed_roots": [],  # added to Program Files, Program Files (x86) and ProgramData
+        "trusted_paths": [],  # tools allowed even when the backend connection is not TLS-verified
     },
 }
 
@@ -164,3 +171,15 @@ class AppSettings(BaseModel):
     @property
     def vector_license_client(self) -> str:
         return self._get("licenses.vector_license_client") or ""
+
+    @property
+    def license_builtin_checks(self) -> list[str]:
+        return list(self._get("licenses.builtin_checks") or [])
+
+    @property
+    def license_allowed_roots(self) -> list[str]:
+        return list(self._get("licenses.allowed_roots") or [])
+
+    @property
+    def license_trusted_paths(self) -> list[str]:
+        return list(self._get("licenses.trusted_paths") or [])

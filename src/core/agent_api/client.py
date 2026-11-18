@@ -44,6 +44,8 @@ PATH_BOOKING_VALIDATE = "/agent/bookings/actions/validate"
 PATH_BOOKING_CHECK_IN = "/agent/bookings/actions/check-in"
 PATH_BOOKING_COMPLETE = "/agent/bookings/actions/complete"
 PATH_BOOKING_EXTEND = "/agent/bookings/actions/extend"
+PATH_LICENSE_CHECKS = "/agent/license-checks"
+CAPABILITY_LICENSE_CHECKS = "license_checks"
 
 _ERROR_BY_STATUS: dict[int, type[errors.AgentApiError]] = {
     401: errors.Unauthenticated,
@@ -308,6 +310,31 @@ class AgentApiClient:
             disposition=disposition.get("value", "") if isinstance(disposition, dict) else str(disposition or ""),
             received_at=parse_datetime(data.get("received_at")),
             replayed=result.headers.get("Idempotency-Replayed", "").lower() == "true",
+        )
+
+    # ------------------------------------------------------------------ license checks
+
+    def get_license_checks(self, etag: str = "") -> tuple[Optional[list], str]:
+        """Checks configured for this computer: ``(items, etag)``, or ``(None, etag)`` when unchanged (304)."""
+        headers = {"If-None-Match": etag} if etag else None
+        result = self.request("GET", PATH_LICENSE_CHECKS, headers=headers, expected=(200, 304))
+        if result.status == 304:
+            return None, etag
+        data = result.data if isinstance(result.data, dict) else {}
+        items = data.get("checks") if isinstance(data.get("checks"), list) else []
+        return items, result.headers.get("ETag", "")
+
+    def report_license_check(self, check_key: str, body: dict, idempotency_key: str | uuid.UUID) -> dict:
+        """One run of one check; reuse ``idempotency_key`` when retrying the same run."""
+        return (
+            self.request(
+                "POST",
+                f"{PATH_LICENSE_CHECKS}/{check_key}/actions/report",
+                json_body=body,
+                headers={"Idempotency-Key": str(idempotency_key)},
+                expected=(200, 201),
+            ).data
+            or {}
         )
 
     # ------------------------------------------------------------------ bookings

@@ -24,7 +24,8 @@ src/
   agent_cli.py            Command line (no Qt)
   core/                   Qt-free logic, unit tested on any OS
     agent_api/            Signed backend client, enrollment, identity/key store, session-log outbox
-    monitoring/           Device observations (USB parsing) and the snapshot reporter
+    monitoring/           Device observations (USB parsing, hardware IDs) and the snapshot reporter
+    licensing/            License checks: configuration, safe probes, extraction, presets, results
     gateway/              Lab Mango endpoints of the service gateway
     otp/                  One-time password generation and delivery
   app/                    The desktop application (MVC on src/mvc)
@@ -45,7 +46,7 @@ tests/                    pytest: agent_api, monitoring, app types, shared clien
 | `remote_session` | `RemoteSessionCtrl`, `SessionTimer` | Session from login to logout, countdown, booking follow-up, session logs |
 | `activity` | `ActivityCtrl`, `ActivityMonitor` | Live activity status from cursor idle time; reports and local status log |
 | `booking_update` | `BookingUpdateCtrl` | Extend or end the running booking |
-| `monitoring` | `MonitoringCtrl`, `UsbDeviceCollector`, `StorageQuotaMonitor` | USB device observations; local storage quota report |
+| `monitoring` | `MonitoringCtrl`, `UsbDeviceCollector`, `LicenseCollector`, `StorageQuotaMonitor` | USB device observations; license checks and expiry warnings; local storage quota report |
 | `device_scan` | `DeviceScanCtrl` | Diagnostic dialog: reported USB devices and a live insert/remove log |
 | `health_check`, `server_config`, `settings`, `app_info`, `app_update`, `log_check`, `systray`, `user_manual` | | Support dialogs and updates |
 
@@ -62,6 +63,8 @@ tests/                    pytest: agent_api, monitoring, app types, shared clien
 | `get:remote_session` | → `RemoteSession` or `None` | `RemoteSessionCtrl` |
 | `get:inactive_seconds` | → `float` | `ActivityCtrl` |
 | `get:usb_devices` | → `list[ObservedDevice]` | `MonitoringCtrl` |
+| `get:licenses` | → `list[LicenseObservation]` | `MonitoringCtrl` |
+| `get:license_checks` | → `list[CheckState]` | `MonitoringCtrl` |
 
 ## Glossary (agent term → backend term)
 

@@ -93,15 +93,20 @@ class DeviceScanCtrl(BaseController):
     # pyqtSlot method - which connected to UI signal
     # ====================================================================\
     def _print_licenses(self):
-        """Licenses found on this computer and connected hardware (read every 6 hours)."""
-        licenses = self.bus_request("get:licenses") or []
+        """License checks and the licenses they found (configured in Lab Mango, or built in)."""
         view = self._device_scan_view
-        view.console(f"Licenses ({len(licenses)}):" if licenses else "Licenses: none found")
         now = datetime.now()
-        for lic in licenses:
-            days = lic.days_left(now)
-            left = "" if days is None else f", {days} days left"
-            view.console(f"  {lic.describe()}{left}")
+        states = self.bus_request("get:license_checks") or []
+        view.console(f"License checks ({len(states)}):" if states else "License checks: none configured")
+        for state in states:
+            result = state.last_result
+            status = "not run yet" if result is None else result.status
+            if result is not None and result.error_message:
+                status += f" - {result.error_message}"
+            view.console(f"  {state.check.name} [{state.source}]: {status}")
+            for lic in state.last_licenses:
+                days = lic.days_left(now)
+                view.console(f"    {lic.describe()}" + ("" if days is None else f", {days} days left"))
         view.console("-" * 40)
 
     @slot_guard(on_exception=_handle_exception)

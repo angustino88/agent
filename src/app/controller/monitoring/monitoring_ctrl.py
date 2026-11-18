@@ -6,11 +6,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from src.app.controller.monitoring.license_collector import (
-    LicenseCollector,
-    vector_license_client_source,
-    warning_text,
-)
+from src.app.controller.monitoring.license_collector import LicenseCollector, warning_text
 from src.app.controller.monitoring.storage_quota_monitor import StorageQuotaMonitor
 from src.app.controller.monitoring.usb_device_collector import UsbDeviceCollector
 from src.app.model.config.task_schedule_config import TaskScheduleConfig
@@ -58,13 +54,10 @@ class MonitoringCtrl(BaseController):
         self._usb_collector.start()
         self._logger.info("[USB] Collector started")
 
-        self._license_collector = LicenseCollector(
-            {"Vector License Client": vector_license_client_source(app_settings.vector_license_client)},
-            warn_days=app_settings.license_warn_days,
-            logger=self._logger,
-        )
+        self._license_collector = LicenseCollector(self._backend_model, app_settings, logger=self._logger)
 
         self.expose_get("licenses", lambda: self._license_collector.licenses if self._license_collector else [])
+        self.expose_get("license_checks", lambda: self._license_collector.states if self._license_collector else [])
         self.expose_get("usb_devices", lambda: self._usb_collector.devices if self._usb_collector else [])
         self._initialized = True
         return self
@@ -93,14 +86,17 @@ class MonitoringCtrl(BaseController):
         except agent_errors.AgentApiError as e:
             self._logger.warning(f"[Monitoring] Policy refresh failed: {e}")
 
-    @task(schedule=TaskScheduleConfig.LICENSE_COLLECTOR, heavy=True)
-    def collect_licenses(self):
-        """Read licenses, log what was found and warn about licenses that expire soon."""
+    @task(schedule=TaskScheduleConfig.LICENSE_CHECKS, heavy=True)
+    def run_license_checks(self):
+        """Refresh the configured checks, run the due ones and warn about licenses that expire soon.
+
+        Runs every 15 minutes; each check has its own interval (6 hours for the Vector preset).
+        """
         if not self._initialized:
             return
-        licenses = self._license_collector.collect()
-        for lic in licenses:
-            self._logger.info(f"[Licenses] {lic.describe()}")
+        self._license_collector.sync_checks()
+        self._license_collector.run_due()
+        self._backend_model.flush_license_reports()
         now = datetime.now()
         for lic in self._license_collector.due_warnings(now):
             text = warning_text(lic, now)

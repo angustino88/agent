@@ -1,6 +1,6 @@
 # Bench device and license monitoring (agent design)
 
-**Status:** Licenses from the Vector License Client: implemented locally (read, tray warnings, device dialog). Device links, watch list and reporting to the backend: proposed (2026-11-18). Backend contract: lab-mango
+**Status:** License checks: implemented in the agent (generic runner, Vector preset, tray warnings, device dialog; uses the backend routes once they exist). Device links and watch list: proposed (2026-11-18). Backend contract: lab-mango
 `docs/proposals/agent-bench-devices-and-licenses.md` (T2, needs owner approval).
 **Builds on:** the USB collector and `DeviceObservationReporter` (`src/core/monitoring/`).
 
@@ -49,11 +49,12 @@ Windows-generated port ID, never a serial; values are upper-case; at most 4 IDs 
 
 ```mermaid
 flowchart LR
-    P[Monitoring policy<br/>watched_devices, device_models, license_collectors] --> F[Watch filter]
+    P[Monitoring policy<br/>watched_devices, device_models] --> F[Watch filter]
     U[USB collector WMI] --> F
     V[Vector collector XL driver] --> F
     F -->|complete snapshot| R1[SnapshotReporter usb / vector]
-    L[License collector<br/>Vector providers] -->|complete snapshot| R2[SnapshotReporter licenses]
+    C[License checks<br/>from the web app] --> L[License check runner]
+    L -->|one result per run| R2[license-checks report]
     R1 --> B[(Backend: links, matching)]
     R2 --> B
     F --> UI[Device dialog + tray warnings]
@@ -68,7 +69,7 @@ Compatibility: with a backend that sends no watch list yet, the agent keeps toda
 |---|---|---|---|
 | `usb` | WMI `Win32_PnPEntity` (exists) | watched / lab-model USB devices with hardware IDs and VID:PID | — |
 | `vector` | Vector XL Driver Library (`vxlapi64.dll`, via `ctypes`) | Vector interfaces: hardware type, serial, channels | Vector driver installed |
-| licenses `vector` | XL driver (legacy licenses) + Vector License Client (new model) | licenses per carrier | see 4.2 |
+| license checks | configured per computer in the web app (presets: Vector License Client) | licenses per carrier, one result per run | see 4.2 |
 
 ### 4.1 Vector devices
 
@@ -76,60 +77,77 @@ Compatibility: with a backend that sends no watch list yet, the agent keeps toda
 `xlCloseDriver`; channels grouped by serial into one device with `vector_device` and, when the
 USB entry is found, `usb_serial`. Read-only: no ports opened, no configuration changed.
 
-### 4.2 Vector licenses
+### 4.2 License checks
 
-| Provider | License model | Read through | Status |
-|---|---|---|---|
-| Vector License Client | New Vector License Model | `Vector.LicenseClient -listlicenses` (Vector KB0021758) | **Implemented** (`src/core/vendors/vector/license_client.py`) |
-| Vector hardware licenses | Legacy, hardware-based (shown in Vector Hardware Config) | XL Driver Library `xlGetLicenseInfo` | Planned; signature to be checked against the installed `vxlapi.h` |
+Licenses are read by **license checks** configured in the Lab Mango web app (backend proposal,
+section 5). The agent implements a closed catalog of read-only probes; a check is data only:
 
-What `-listlicenses` gives (fixture: `tests/vendors/vector/fixtures/listlicenses_device_perpetual.xml`):
-
-| Element | Used as |
+| Part | Options |
 |---|---|
-| `DeviceName` (`007113-585343`) | carrier hardware ID `vector_device` for `BindingType` `DEVICE`/`DONGLE` |
-| `BindingType` | carrier type: `DEVICE` → device, `DONGLE` → dongle, `PC` → this computer |
-| `ProductText`, `MaterialNumber` | product name and Vector product (material) number |
-| `MaxVersion` | highest licensed version |
-| `ExpirationDateString` | **`expires_at`**: when the license stops working unless reactivated (here a perpetual license that must be reactivated every `ReactivationPeriod` = 12 months) |
-| `FinalExpirationDateString` | `final_expires_at`; `9999-12-31` means perpetual |
-| `IsReactivatable`, `IsPerpetual`, `LicenseType` | shown to the user, sent to the backend |
-| `VectorLicenseId` | matches `License.identifier` in Lab Mango; never logged or shown |
-| `ContractId`, `LicenseId`, user and name-list fields | not kept |
+| Probe | `command` (installed tool, fixed args, stdout), `file` (license/status file), `registry` (values under one HKLM key) |
+| Extraction | `xml` (ElementTree path), `json` (dotted path with `[*]`), `text` (regex with named groups), `values` (registry); field sources for product, product code, version, expiry, final expiry, carrier ID, vendor license ID, reactivatable, carrier type; date formats; "never" values |
+| Carrier | `computer`, `device` / `dongle` (hardware ID kind + `carrier_id`), `server`, `equipment` (unit chosen in the web app), or `mapped` per license from a tool field |
 
-Warnings and the backend's `License.expiry_date` follow `expires_at`: that is the day the user loses
-the tool. The output declares `encoding="Codepage - 437"`, not a valid XML encoding; the reader
-decodes the bytes itself. The CLI runs read-only (`-listlicenses` only), without a window, with a
-20 s timeout and a 4 MiB output limit.
+Where the checks come from: `GET /agent/license-checks` when the backend advertises
+`license_checks`; until then the presets enabled in `licenses.builtin_checks` (local settings).
+Each check runs on its own interval (≥ 15 minutes); the scheduler wakes every 15 minutes. A changed
+`revision` runs at once. A failed run keeps the last known licenses for the UI and reports the
+failure; only an `ok` run replaces the license set.
 
-Open: the device name format looks like `<article number>-<serial>`; the Vector device collector
-(4.1) should produce the same string so device and license links are one link. To verify on a lab
-computer against Vector Hardware Config.
+**Local safety rules** (`src/core/licensing/probes.py`), not overridable by the backend:
 
-### 4.3 License observation
+| Rule | Detail |
+|---|---|
+| No shell | `subprocess.run([exe, *args])`, no window, stdin closed, cwd = tool folder |
+| Bounds | ≤ 16 args of ≤ 256 chars, timeout ≤ 60 s, output and files ≤ 4 MiB, ≤ 500 licenses |
+| Folders | Executables and files: absolute, under Program Files, Program Files (x86), ProgramData or `licenses.allowed_roots` |
+| Untrusted connection | While `tls.verify` is off, configured paths are refused (`rejected` / `untrusted_connection`) unless they are trusted defaults: preset executables, `licenses.vector_license_client`, `licenses.trusted_paths` |
+| Registry | HKLM, read only |
 
-`src/core/monitoring/licenses.py`: `LicenseObservation(observation_key, vendor, product_code,
-product_name, carrier_type, carrier_hardware_id, expires_at, final_expires_at, max_version,
-is_reactivatable, vendor_license_id)`, with `state(now)`, `days_left(now)` and `describe()` (safe
-for logs: no license ID). Observation key: `vector:<carrier type>:<device name or "computer">:<material number>`.
+**Vector preset** (`src/core/licensing/presets.py`): `Vector.LicenseClient -listlicenses`
+(Vector KB0021758), fixture `tests/licensing/fixtures/listlicenses_device_perpetual.xml`.
+
+| Element | Mapped to |
+|---|---|
+| `ProductText`, `MaterialNumber`, `MaxVersion` | product name, product code, max version |
+| `ExpirationDateString` | `expires_at`: when the activation ends (reactivatable licenses) |
+| `FinalExpirationDateString` | `final_expires_at`; `9999-12-31` = perpetual |
+| `BindingType` + `DeviceName` | carrier: DEVICE → device, DONGLE → dongle, PC → computer; hardware ID `vector_device` = `DeviceName` |
+| `VectorLicenseId` | vendor license ID (matches `License.identifier`; never logged or shown) |
+| `IsReactivatable` | warning text: "Reactivate it in the vendor's license tool." |
+
+The output declares `encoding="Codepage - 437"` (not a valid XML encoding); `encoding: auto` maps it
+to cp437. Other tools (FlexNet `lmutil`, CodeMeter, license files) become presets the same way: capture
+the tool's output on a lab computer, write the mapping, add the capture as a test fixture.
+
+Open: the Vector legacy (hardware-based) licenses are only visible in Vector Hardware Config; a
+probe for them needs a tool with readable output (to be identified). The device name format
+(`<article>-<serial>`) should be confirmed so the Vector device collector produces the same ID.
+
+### 4.3 Data
+
+`src/core/licensing/models.py`: `LicenseObservation` (check key, observation key, vendor, product
+code/name, carrier type, carrier hardware ID or equipment UID, `expires_at`, `final_expires_at`, max
+version, reactivatable, vendor license ID) and `CheckResult` (check key, revision, status `ok` /
+`not_installed` / `failed` / `rejected`, error code and message, duration, licenses). Report body:
+`src/core/licensing/report.py`.
 
 ## 5. Code layout
 
 ```
-src/core/monitoring/
-  devices.py               HardwareId, ObservedDevice(hardware_ids, vendor_id, product_id)
-  watch_list.py            WatchList.from_policy(), accepts(device), is_watched(device)
-  snapshot_reporter.py     SnapshotReporter (generalised from reporter.py: devices and licenses)
-  licenses.py              LicenseObservation, LicenseProvider protocol
-src/core/vendors/vector/
-  xl_driver.py             ctypes binding (Windows only, loaded lazily)
-  devices.py               XL channel list -> ObservedDevice
-  license_client.py        runs the License Client CLI, parses its output
-  licenses.py              both providers -> LicenseObservation
+src/core/licensing/          Qt-free, unit tested
+  checks.py                  LicenseCheck and validation (the configuration contract)
+  extract.py                 decoding and declarative extraction (xml / json / text / values)
+  probes.py                  command / file / registry readers and the SafetyPolicy
+  runner.py                  run_check(): probe -> extract -> CheckResult, never raises
+  presets.py                 built-in templates (Vector License Client)
+  report.py                  report body for the backend
+  models.py                  LicenseObservation, CheckResult, CarrierType, CheckStatus
+src/core/monitoring/         devices, hardware IDs, device observation reporter
 src/app/controller/monitoring/
-  vector_device_collector.py
-  license_collector.py
-tests/vendors/vector/fixtures/   captured outputs (4.2)
+  license_collector.py       which checks to run, intervals, last results, warnings, reporting
+  monitoring_ctrl.py         schedules license checks every 15 minutes
+tests/licensing/             validation, extraction (real Vector sample), safety rules, a real process
 ```
 
 ## 6. User interface (tray app)
@@ -137,8 +155,9 @@ tests/vendors/vector/fixtures/   captured outputs (4.2)
 - **Device dialog**: each device shows its link: "CANcase 3 (this bench)", "CANcase 7 (bench B7,
   additional)" or "Not linked — link it in Lab Mango" with a button that opens the unit's page.
   Hardware IDs are shown so an admin can tell the coordinator which device it is.
-- **Licenses in the device dialog** (implemented as a list in the dialog's log; a table needs a
-  `.ui` change): license, carrier, expiry, version, days left.
+- **License checks in the device dialog** (implemented as a list in the dialog's log; a table needs
+  a `.ui` change): each check with its source (web app or built-in) and last status, and the
+  licenses it found with carrier, expiry, version and days left.
 - **Tray warning** (implemented) when a license on this computer or a connected device expires
   within `licenses.warn_days` (30) days, at most once a day per license, for example
   "CANalyzer PRO on 007113-585343 expires in 10 days (09 Apr 2027). Reactivate it in the Vector
@@ -150,9 +169,11 @@ Linking itself stays in the web app: the agent is authenticated as a device, not
 
 | Situation | Behaviour |
 |---|---|
-| Vector driver or License Client not installed | That source reports nothing, logged once; others continue |
-| CLI timeout (> 10 s) or unparsable output | No snapshot sent (never a partial "complete" one); retried next cycle |
-| Backend without the new fields or route | Previous behaviour for devices; license collector off |
+| Tool, file or registry key missing | Check result `not_installed`; other checks continue |
+| Timeout or unreadable output | `failed` with `timeout` / `parse_error`; last known licenses kept; never a partial complete list |
+| Configuration breaks a local rule | `rejected` with the reason, reported to the web app |
+| Backend without license checks | Built-in presets from local settings; results stay local |
+| Backend without the device fields | Previous behaviour for devices |
 | Device moved to another USB port | `usb_serial` / `vector_device` still match; a `usb_port`-only device needs a new link (shown in the dialog) |
 
 ## 8. Delivery
@@ -160,5 +181,5 @@ Linking itself stays in the web app: the agent is authenticated as a device, not
 | Phase | Agent | Backend | Done when |
 |---|---|---|---|
 | 1 | Hardware IDs; watch filter; Vector device collector; link status in the dialog | Links, suggestions, link matching, `usb_ids`, watch list | Bench units show connected/missing by link; additional devices get suggestions |
-| 2 | License providers (after 4.2 captures), license reporter | License route, projection, matching | A CANcase's licenses show on its license records |
-| 3 | Tray warnings, license table | Expiry/version updates (D1), notifications | Lab Mango expiry dates follow the hardware |
+| 2 | **Done:** generic check runner, safety rules, Vector preset, reporting client, tray warnings | License checks (model, admin UI, routes), runs, observations, matching | A check configured in the web app runs on its computers and its licenses show on the license records |
+| 3 | More presets from captured output (FlexNet, CodeMeter, license files); license table in the dialog | Expiry/version updates (D1), notifications, "found on lab hardware" | Lab Mango expiry dates follow the tools |
