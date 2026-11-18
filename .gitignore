@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+dist/
+*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+prj/config/keys/ed25519_priv.pem

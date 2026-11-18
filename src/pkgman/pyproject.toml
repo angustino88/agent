@@ -1,0 +1,16 @@
+[project]
+name = "pkgman"
+version = "0.0.0"
+requires-python = ">=3.12"
+
+dependencies = [
+    "dirsync==2.2.6",
+    "packaging==26.0",
+    "requests==2.33.1",
+]
+
+[tool.setuptools]
+packages = ["pkgman"]
+
+[tool.setuptools.package-dir]
+pkgman = "."

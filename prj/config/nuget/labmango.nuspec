@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>{{PACKAGE_ID}}</id>
+    <version>{{VERSION}}</version>
+    <title>{{APP_DISPLAY_NAME}}</title>
+    <authors>{{PACKAGE_AUTHORS}}</authors>
+    <requireLicenseAcceptance>{{REQUIRE_LICENSE_ACCEPTANCE}}</requireLicenseAcceptance>
+    <tags>{{PACKAGE_TAGS}}</tags>
+    <summary>{{APP_DISPLAY_NAME}}</summary>
+    <description>
+    {{APP_DESCRIPTION}}
+    </description>
+    <releaseNotes>
+    {{RELEASE_NOTES}}
+    </releaseNotes>
+    <copyright>{{PACKAGE_COPYRIGHT}}</copyright>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

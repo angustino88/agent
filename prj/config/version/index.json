@@ -1,0 +1,25 @@
+{
+  "latest": "2.7.0",
+  "versions": [
+    {
+      "metadata_url": "2.4.0/meta.json",
+      "version": "2.4.0"
+    },
+    {
+      "metadata_url": "2.4.1/meta.json",
+      "version": "2.4.1"
+    },
+    {
+      "metadata_url": "2.5.0/meta.json",
+      "version": "2.5.0"
+    },
+    {
+      "metadata_url": "2.6.0/meta.json",
+      "version": "2.6.0"
+    },
+    {
+      "metadata_url": "2.7.0/meta.json",
+      "version": "2.7.0"
+    }
+  ]
+}

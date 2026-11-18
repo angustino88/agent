@@ -1,0 +1,687 @@
+/* =========================================================================
+   VectorT32ape — Light theme with olive-green chrome
+   Single source of truth for application styling.
+   Token substitution: placeholders like @accent are replaced at load time
+   See src/utils/theme/tokens.py for the token catalog.
+
+   Palette at a glance:
+     Chrome (toolbar / menubar / statusbar): dark olive  #3d503d
+     Content background:                     olive-white #f8fbf8
+     Accent / interactive:                   olive       #556B55
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   Base — applies to QWidget so all widgets pick up font + color
+   ------------------------------------------------------------------------- */
+QWidget {
+    color: @text;
+    font-family: @font-family;
+    font-size: @fs-base;
+}
+
+QDialog,
+QMainWindow {
+    background-color: @bg-window;
+}
+
+/* Selection highlight (text in line edits, plain text edits) */
+QWidget {
+    selection-background-color: @accent-soft;
+    selection-color: @text-inverse;
+}
+
+/* -------------------------------------------------------------------------
+   Group boxes
+   ------------------------------------------------------------------------- */
+QGroupBox {
+    font-weight: bold;
+    border: 1px solid @border;
+    border-radius: 4px;
+    margin-top: 8px;
+    padding: 8px 6px 6px 6px;
+    background-color: @bg-window;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 8px;
+    padding: 0 4px;
+    color: @accent;
+    background-color: @bg-window;
+}
+
+/* -------------------------------------------------------------------------
+   Tab widget / bar
+   ------------------------------------------------------------------------- */
+QTabWidget::pane {
+    border: 1px solid @border-strong;
+    border-radius: 0 4px 4px 4px;
+    background-color: @bg-window;
+}
+QTabBar {
+    background: transparent;
+}
+QTabBar::tab {
+    padding: 3px 10px;
+    margin-right: 2px;
+    border: 1px solid @border;
+    border-bottom: none;
+    border-radius: 3px 3px 0 0;
+    min-width: 36px;
+    font-size: @fs-sm;
+    background: transparent;
+    color: @text-muted;
+}
+QTabBar::tab:selected {
+    border-color: @border-strong;
+    border-bottom-color: @bg-window;
+    background: @accent;
+    color: @text-inverse;
+    font-weight: bold;
+    margin-bottom: -1px;
+}
+QTabBar::tab:hover:!selected {
+    background: @accent-tint;
+    color: @text;
+}
+
+
+/* -------------------------------------------------------------------------
+   Inputs (line edits, spin boxes, combo boxes)
+   ------------------------------------------------------------------------- */
+QLineEdit,
+QSpinBox,
+QDoubleSpinBox,
+QComboBox {
+    border: 1px solid @border;
+    border-radius: 3px;
+    padding: 1px 5px;
+    min-height: 20px;
+    background-color: @bg-window;
+    color: @text;
+    selection-background-color: @accent-soft;
+    selection-color: @text-inverse;
+}
+QLineEdit:focus,
+QSpinBox:focus,
+QDoubleSpinBox:focus,
+QComboBox:focus {
+    border-color: @accent;
+    border-width: 1px;
+}
+QLineEdit:disabled,
+QSpinBox:disabled,
+QDoubleSpinBox:disabled,
+QComboBox:disabled {
+    color: @text-muted;
+    background-color: @bg-elevated;
+}
+
+QComboBox::drop-down {
+    border: none;
+    width: 18px;
+    subcontrol-origin: padding;
+    subcontrol-position: right center;
+}
+QComboBox::down-arrow {
+    image: url(@arrow-root/arrow_down.svg);
+    width: 8px;
+    height: 5px;
+}
+QComboBox::down-arrow:disabled {
+    image: url(@arrow-root/arrow_down_dis.svg);
+}
+QComboBox QAbstractItemView {
+    border: 1px solid @border-strong;
+    background-color: @bg-window;
+    color: @text;
+    selection-background-color: @accent;
+    selection-color: @text-inverse;
+    outline: 0;
+    padding: 2px;
+}
+
+/* QSpinBox / QDoubleSpinBox — explicit buttons so arrows render on all platforms */
+QAbstractSpinBox::up-button,
+QAbstractSpinBox::down-button {
+    border: none;
+    border-left: 1px solid @border;
+    width: 14px;
+    background: @bg-elevated;
+}
+QAbstractSpinBox::up-button   { subcontrol-position: top right; }
+QAbstractSpinBox::down-button { subcontrol-position: bottom right; border-top: 1px solid @border; }
+QAbstractSpinBox::up-button:hover,
+QAbstractSpinBox::down-button:hover { background: @accent-tint; }
+
+QAbstractSpinBox::up-arrow {
+    image: url(@arrow-root/arrow_up.svg);
+    width: 7px;
+    height: 5px;
+}
+QAbstractSpinBox::down-arrow {
+    image: url(@arrow-root/arrow_down.svg);
+    width: 7px;
+    height: 5px;
+}
+QAbstractSpinBox::up-arrow:disabled,
+QAbstractSpinBox::down-arrow:disabled {
+    image: url(@arrow-root/arrow_down_dis.svg);
+}
+
+/* -------------------------------------------------------------------------
+   Check / radio indicators (Fusion respects these CSS rules)
+   ------------------------------------------------------------------------- */
+QCheckBox,
+QRadioButton {
+    spacing: 6px;
+    color: @text;
+    background: transparent;
+}
+QCheckBox::indicator,
+QRadioButton::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid @border-strong;
+    background: @bg-window;
+    padding: 0;
+    margin: 0;
+}
+QCheckBox::indicator { border-radius: 3px; }
+QRadioButton::indicator { border-radius: 50%; }
+
+QCheckBox::indicator:hover,
+QRadioButton::indicator:hover {
+    border-color: @accent;
+    background: @accent-tint;
+}
+QCheckBox::indicator:checked {
+    background: @accent;
+    border-color: @accent-pressed;
+}
+QCheckBox::indicator:checked:hover {
+    background: @accent-hover;
+    border-color: @accent-hover;
+}
+QRadioButton::indicator:checked {
+    /* circular checked: outer ring with a centered filled dot (even px size to avoid subpixel oval) */
+    border: 1px solid @accent;
+    background: qradialgradient(cx:0.5, cy:0.5, radius:0.38, fx:0.5, fy:0.5, stop:0 @accent, stop:0.5 @accent, stop:0.52 @bg-window, stop:1 @bg-window);
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+}
+QRadioButton::indicator:checked:hover {
+    border-color: @accent-hover;
+    background: qradialgradient(cx:0.5, cy:0.5, radius:0.38, fx:0.5, fy:0.5, stop:0 @accent-hover, stop:0.5 @accent-hover, stop:0.52 @bg-window, stop:1 @bg-window);
+}
+QCheckBox:disabled,
+QRadioButton:disabled {
+    color: @text-muted;
+}
+QCheckBox::indicator:disabled,
+QRadioButton::indicator:disabled {
+    background: @bg-elevated;
+    border-color: @border;
+}
+
+/* -------------------------------------------------------------------------
+   Buttons
+   Default = neutral, [variant="primary"] = accent fill, [variant="link"] = flat
+   ------------------------------------------------------------------------- */
+QPushButton {
+    border: 1px solid @border-strong;
+    border-radius: 3px;
+    padding: 3px 12px;
+    min-height: 20px;
+    min-width: 64px;
+    color: @text;
+    background-color: @bg-elevated;
+}
+QPushButton:hover {
+    border-color: @accent;
+    background-color: @accent-tint;
+    color: @text;
+}
+QPushButton:pressed {
+    background-color: @accent-pressed;
+    border-color: @accent-pressed;
+    color: @text-inverse;
+}
+QPushButton:focus {
+    border-color: @accent;
+    outline: none;
+}
+QPushButton:disabled {
+    color: @text-muted;
+    background-color: @bg-elevated;
+    border-color: @border;
+}
+
+QPushButton[variant="primary"] {
+    background-color: @accent;
+    border-color: @accent-pressed;
+    color: @text-inverse;
+    font-weight: bold;
+    min-width: 100px;
+}
+QPushButton[variant="primary"]:hover {
+    background-color: @accent-hover;
+    border-color: @accent-hover;
+    color: @text-inverse;
+}
+QPushButton[variant="primary"]:pressed {
+    background-color: @accent-pressed;
+    border-color: @accent-pressed;
+    color: @text-inverse;
+}
+QPushButton[variant="primary"]:focus {
+    border-color: @accent-pressed;
+    outline: none;
+}
+QPushButton[variant="primary"]:disabled {
+    background-color: @border;
+    border-color: @border;
+    color: @text-muted;
+}
+
+QPushButton[variant="secondary"] {
+    min-width: 100px;
+}
+
+QPushButton[variant="link"] {
+    border: none;
+    background: transparent;
+    color: @accent;
+    min-width: 0;
+    padding: 2px 4px;
+}
+QPushButton[variant="link"]:hover {
+    color: @accent-hover;
+    text-decoration: underline;
+}
+
+/* Compact icon button (e.g. file-browse "...") */
+QPushButton[variant="compact"] {
+    min-width: 28px;
+    padding: 2px 6px;
+}
+
+/* -------------------------------------------------------------------------
+   ToolBar / ToolButtons  — dark olive chrome
+   ------------------------------------------------------------------------- */
+QToolBar {
+    background-color: @bg-chrome;
+    border: none;
+    border-bottom: 1px solid @divider-chrome;
+    spacing: 1px;
+    padding: 2px 3px;
+}
+QToolBar::separator {
+    background: @divider-chrome;
+    width: 1px;
+    margin: 3px 4px;
+}
+QToolButton {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    padding: 2px 4px;
+    color: @text-chrome;
+}
+QToolButton:hover {
+    background-color: @bg-chrome-hover;
+    border-color: @accent-soft;
+    color: @text-chrome;
+}
+QToolButton:pressed {
+    background-color: @accent-pressed;
+    border-color: @accent-soft;
+    color: @text-inverse;
+}
+QToolButton:checked {
+    /* use a lighter olive tint for checked (toggle) state */
+    background-color: @accent-hover;
+    border-color: @accent;
+    color: @text-inverse;
+}
+QToolButton:disabled {
+    color: @text-chrome-dim;
+    background-color: transparent;
+    border-color: transparent;
+}
+QToolButton:checked:disabled,
+QToolButton:pressed:disabled {
+    /* ensure checked/pressed visuals don't show accent when disabled */
+    background-color: transparent;
+    border-color: transparent;
+    color: @text-chrome-dim;
+}
+
+/* Toolbar extension/overflow button (Qt creates a special button named qt_toolbar_ext_button) */
+QToolButton#qt_toolbar_ext_button,
+QToolBar::extension {
+    background: transparent;
+    border: none;
+    padding: 2px;
+    /* allow native style to draw the extension icon; do not override image/size */
+}
+QToolButton#qt_toolbar_ext_button:hover,
+QToolBar::extension:hover {
+    background-color: @bg-chrome-hover;
+}
+QToolButton#qt_toolbar_ext_button:disabled,
+QToolBar::extension:disabled {
+    color: @text-chrome-dim;
+    background: transparent;
+}
+
+/* -------------------------------------------------------------------------
+   Menu bar / menus  — dark olive chrome for bar, light popup
+   ------------------------------------------------------------------------- */
+QMenuBar {
+    background-color: @bg-chrome;
+    border-bottom: 1px solid @divider-chrome;
+    padding: 2px;
+    color: @text-chrome;
+}
+QMenuBar::item {
+    background: transparent;
+    padding: 4px 10px;
+    border-radius: 3px;
+    color: @text-chrome;
+}
+QMenuBar::item:selected {
+    background-color: @bg-chrome-hover;
+    color: @text-chrome;
+}
+QMenuBar::item:pressed {
+    background-color: @accent-pressed;
+    color: @text-inverse;
+}
+
+/* Popup menu — light, olive accented */
+QMenu {
+    background-color: @bg-window;
+    border: 1px solid @border-strong;
+    padding: 4px;
+    color: @text;
+}
+QMenu::item {
+    padding: 3px 12px;
+    border-radius: 3px;
+    color: @text;
+}
+QMenu::item:selected {
+    background-color: @accent;
+    color: @text-inverse;
+}
+QMenu::item:checked {
+    background-color: @accent-hover;
+    color: @text-inverse;
+}
+QMenu::item:checked:disabled {
+    /* when a checked menu item is disabled, show muted text and no accent background */
+    background-color: @bg-window;
+    color: @text-muted;
+}
+QMenu::item:disabled {
+    color: @text-muted;
+}
+QMenu::separator {
+    height: 1px;
+    background: @divider;
+    margin: 4px 6px;
+}
+
+/* -------------------------------------------------------------------------
+   Status bar  — dark olive chrome, matching toolbar
+   ------------------------------------------------------------------------- */
+QStatusBar {
+    background-color: @bg-chrome;
+    border-top: 1px solid @divider-chrome;
+    color: @text-chrome;
+}
+QStatusBar::item {
+    border: none;
+}
+/* Labels placed directly on status bar inherit text-chrome */
+QStatusBar QLabel {
+    color: @text-chrome;
+}
+
+/* -------------------------------------------------------------------------
+   Tables
+   ------------------------------------------------------------------------- */
+QTableView,
+QTableWidget {
+    background-color: @bg-window;
+    alternate-background-color: @bg-elevated;
+    gridline-color: @divider;
+    border: 1px solid @border;
+    selection-background-color: @accent;
+    selection-color: @text-inverse;
+}
+QHeaderView::section {
+    background-color: @bg-panel;
+    color: @text;
+    padding: 4px 8px;
+    border: none;
+    border-right: 1px solid @divider;
+    border-bottom: 1px solid @border-strong;
+    font-weight: bold;
+}
+QTableCornerButton::section {
+    background-color: @bg-panel;
+    border: none;
+    border-right: 1px solid @divider;
+    border-bottom: 1px solid @border-strong;
+}
+
+/* -------------------------------------------------------------------------
+   Plain text edit (console)
+   ------------------------------------------------------------------------- */
+QPlainTextEdit,
+QTextEdit {
+    border: 1px solid @border;
+    border-radius: 4px;
+    background-color: @bg-window;
+    color: @text;
+    selection-background-color: @accent-soft;
+    selection-color: @text-inverse;
+}
+QPlainTextEdit[role="console"],
+QTextEdit[role="console"] {
+    font-family: @font-mono;
+    font-size: @fs-xs;
+    background-color: @bg-elevated;
+    padding: 8px 8px;
+}
+
+QPlainTextEdit[role="console-update"],
+QTextEdit[role="console-update"] {
+    font-family: @font-mono;
+    font-size: @fs-sm;
+    background-color: @bg-elevated;
+    padding: 8px 8px;
+}
+
+/* -------------------------------------------------------------------------
+   Splitter
+   ------------------------------------------------------------------------- */
+QSplitter::handle {
+    background-color: @divider;
+}
+QSplitter::handle:horizontal { width: 4px; }
+QSplitter::handle:vertical   { height: 4px; }
+QSplitter::handle:hover      { background-color: @accent-soft; }
+
+/* -------------------------------------------------------------------------
+   Scroll bars
+   ------------------------------------------------------------------------- */
+QScrollBar:vertical {
+    background: @bg-elevated;
+    width: 12px;
+    border: none;
+}
+QScrollBar:horizontal {
+    background: @bg-elevated;
+    height: 12px;
+    border: none;
+}
+QScrollBar::handle:vertical,
+QScrollBar::handle:horizontal {
+    background: @border-strong;
+    border-radius: 4px;
+    min-height: 24px;
+    min-width: 24px;
+    margin: 2px;
+}
+QScrollBar::handle:hover {
+    background: @accent-soft;
+}
+QScrollBar::add-line, QScrollBar::sub-line { background: none; border: none; height: 0; width: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: none; }
+
+/* -------------------------------------------------------------------------
+   Progress bar
+   ------------------------------------------------------------------------- */
+QProgressBar {
+    border: 1px solid @border;
+    border-radius: 4px;
+    background-color: @bg-elevated;
+    text-align: center;
+    color: @text;
+}
+QProgressBar::chunk {
+    background-color: @accent;
+    border-radius: 3px;
+}
+
+/* -------------------------------------------------------------------------
+   Tooltip
+   ------------------------------------------------------------------------- */
+QToolTip {
+    background-color: @bg-chrome;
+    color: @text-chrome;
+    border: 1px solid @accent-pressed;
+    padding: 4px 6px;
+    border-radius: 3px;
+}
+
+/* -------------------------------------------------------------------------
+   Semantic role classes  (use widget.setProperty("role", "..."))
+   ------------------------------------------------------------------------- */
+QLabel[role="hint"] {
+    color: @text-muted;
+    font-size: @fs-sm;
+}
+QLabel[role="caption"] {
+    color: @text-muted;
+    font-size: @fs-xs;
+}
+QLabel[role="section-title"] {
+    color: @accent;
+    font-size: @fs-md;
+    font-weight: bold;
+}
+QLabel[role="dialog-title"] {
+    color: @accent;
+    font-size: @fs-lg;
+    font-weight: bold;
+}
+QLabel[role="splash-title"] {
+    color: @accent;
+    font-size: @fs-xl;
+    font-weight: bold;
+}
+QLabel[role="console-header"] {
+    color: @text-muted;
+    font-family: @font-mono;
+    font-size: @fs-xs;
+}
+QLabel[role="value"] {
+    color: @text;
+    font-family: @font-mono;
+    font-size: @fs-base;
+}
+
+QFrame[role="divider"] {
+    color: @divider;
+    background-color: @divider;
+    max-height: 1px;
+    border: none;
+}
+
+/* -------------------------------------------------------------------------
+   About / splash dialog header band
+   ------------------------------------------------------------------------- */
+QWidget[role="header"] {
+    background-color: @accent-tint;
+    border-bottom: 1px solid @border;
+}
+
+/* -------------------------------------------------------------------------
+   Status pill (StatusPill component)
+   ------------------------------------------------------------------------- */
+QLabel[role="status-pill"] {
+    padding: 1px 7px;
+    border-radius: 8px;
+    font-size: @fs-xs;
+    font-weight: bold;
+    color: @text-inverse;
+    background-color: @status-idle;
+}
+QLabel[role="status-pill"][state="ok"]        { background-color: @status-ok; }
+QLabel[role="status-pill"][state="error"]     { background-color: @status-error; }
+QLabel[role="status-pill"][state="warn"]      { background-color: @status-warn; }
+QLabel[role="status-pill"][state="recording"] { background-color: @status-error; }
+QLabel[role="status-pill"][state="idle"]      { background-color: @status-idle; }
+
+/* -------------------------------------------------------------------------
+   Announcement bar (update notification strip)
+   ------------------------------------------------------------------------- */
+QFrame[role="announcement-bar"] {
+    background-color: #fff8e1;
+    border-bottom: 1px solid @status-warn;
+}
+
+QLabel[role="announcement-text"] {
+    color: #6d4c00;
+    font-size: @fs-sm;
+    font-weight: bold;
+    background: transparent;
+    border: none;
+}
+
+QPushButton[role="announcement-action"] {
+    color: @accent;
+    font-size: @fs-sm;
+    font-weight: bold;
+    background-color: #ffffff;
+    border: 1px solid @accent;
+    border-radius: 6px;
+    padding: 1px 10px;
+}
+QPushButton[role="announcement-action"]:hover {
+    color: @accent-pressed;
+    background-color: @accent-tint;
+    border-color: @accent-pressed;
+}
+QPushButton[role="announcement-action"]:pressed {
+    background-color: @accent-soft;
+    border-color: @accent-pressed;
+}
+
+QPushButton[role="announcement-dismiss"] {
+    color: #6d4c00;
+    font-size: @fs-sm;
+    background: transparent;
+    border: none;
+    padding: 0;
+    min-width: 16px;
+    min-height: 16px;
+}
+QPushButton[role="announcement-dismiss"]:hover {
+    color: @text;
+}
