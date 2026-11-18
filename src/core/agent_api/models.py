@@ -99,9 +99,12 @@ class MonitoringPolicy:
     freshness_seconds: int
     interface_names: tuple[str, ...]
     etag: str = ""
+    # The watch list: [{equipment_uid, name, hardware_ids: [{kind, value}]}] expected on this computer.
+    expected_devices: tuple[dict, ...] = ()
 
     @classmethod
     def from_data(cls, data: dict, etag: str = "") -> "MonitoringPolicy":
+        expected = data.get("expected_devices") or ()
         return cls(
             generation_key=str(data.get("generation_key", "")),
             max_devices=int(data.get("max_devices", 0)),
@@ -109,6 +112,7 @@ class MonitoringPolicy:
             freshness_seconds=int(data.get("freshness_seconds", 0)),
             interface_names=tuple(data.get("interface_names") or ()),
             etag=etag,
+            expected_devices=tuple(item for item in expected if isinstance(item, dict)),
         )
 
 

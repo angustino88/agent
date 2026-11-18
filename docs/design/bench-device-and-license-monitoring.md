@@ -1,6 +1,6 @@
 # Bench device and license monitoring (agent design)
 
-**Status:** License checks: implemented in the agent (generic runner, Vector preset, tray warnings, device dialog; uses the backend routes once they exist). Device links and watch list: proposed (2026-11-18). Backend contract: lab-mango
+**Status:** Devices: implemented end to end (registered PnP IDs, watch list, discovery; agent, backend and web app). License checks: implemented in the agent; backend routes pending. Backend contract: lab-mango
 `docs/proposals/agent-bench-devices-and-licenses.md` (T2, needs owner approval).
 **Builds on:** the USB collector and `DeviceObservationReporter` (`src/core/monitoring/`).
 
@@ -60,13 +60,15 @@ flowchart LR
     L --> UI
 ```
 
-Compatibility: while the policy has no `expected_devices`, the agent keeps today's behaviour.
+The legacy model (report every device, match by serial number) is removed. A discovery snapshot
+offers only USB devices that are not on the watch list; the backend treats it as link evidence only
+(never presence, reporting or alerts).
 
 ## 4. Collectors
 
 | Collector | Source | Reports | Needs |
 |---|---|---|---|
-| `usb` | WMI `Win32_PnPEntity` (exists) | devices on the watch list, by PnP ID | — |
+| `pnp` | WMI `Win32_PnPEntity` every 5 s, 3-scan debounce | devices on the watch list, by PnP ID | — |
 | `discovery` | same scan, on Push | all connected devices, once | admin login |
 | license checks | configured per computer in the web app (presets: Vector License Client) | licenses per carrier, one result per run | see 4.2 |
 

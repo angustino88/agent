@@ -3,7 +3,7 @@ import json
 import pytest
 
 from src.core.agent_api import errors
-from src.core.monitoring import DeviceObservationReporter, ObservedDevice
+from src.core.monitoring import DeviceObservationReporter, HardwareId, ObservedDevice
 
 
 POLICY = {
@@ -36,8 +36,11 @@ class Clock:
         return self.now
 
 
-def device(key="usb:a", serial="SN1"):
-    return ObservedDevice(observation_key=key, interface_name="USB", name="Probe", serial_number=serial)
+def device(key="pnp:a", serial="SN1"):
+    pnp_id = rf"USB\VID_0403&PID_6001\{serial}"
+    return ObservedDevice(
+        observation_key=key, interface_name="USB", name="Probe", hardware_ids=(HardwareId.pnp(pnp_id),)
+    )
 
 
 @pytest.fixture
@@ -109,7 +112,7 @@ def test_rejected_batch_is_dropped_and_a_new_snapshot_follows(reporter, session,
 
 def test_too_many_devices_are_not_reported_as_a_truncated_snapshot(reporter, session):
     session.queue(200, POLICY)
-    many = [device(f"usb:{i}", f"S{i}") for i in range(4)]
+    many = [device(f"pnp:{i}", f"S{i}") for i in range(4)]
     assert reporter.report(many) is None
     assert bodies(session) == []
 

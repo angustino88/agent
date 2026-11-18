@@ -1,27 +1,39 @@
-"""Device monitoring: what the agent observes and how it reports it to the backend. Qt-free."""
+"""Device monitoring: PnP devices on this computer, the watch list, and reporting. Qt-free."""
 
 from .devices import (
-    USB_COLLECTOR_KEY,
-    USB_INTERFACE_NAME,
+    CONNECTED,
+    DISCONNECTED,
     HardwareId,
     HardwareIdKind,
     ObservedDevice,
-    UsbInstance,
-    parse_usb_instance_id,
+    enumerator,
+    is_discoverable,
+    is_port_bound,
+    normalize_hardware_id,
     pick_interface_name,
-    usb_device,
+    pnp_device,
 )
 from .reporter import DeviceObservationReporter
+from .watch_list import ExpectedDevice, WatchList
+
+PNP_COLLECTOR_KEY = "pnp"  # devices on the watch list
+DISCOVERY_COLLECTOR_KEY = "discovery"  # one-off snapshots an administrator pushes from the agent
 
 __all__ = [
-    "USB_COLLECTOR_KEY",
-    "USB_INTERFACE_NAME",
+    "CONNECTED",
+    "DISCONNECTED",
+    "DISCOVERY_COLLECTOR_KEY",
+    "PNP_COLLECTOR_KEY",
     "DeviceObservationReporter",
+    "ExpectedDevice",
     "HardwareId",
     "HardwareIdKind",
     "ObservedDevice",
-    "UsbInstance",
-    "parse_usb_instance_id",
+    "WatchList",
+    "enumerator",
+    "is_discoverable",
+    "is_port_bound",
+    "normalize_hardware_id",
     "pick_interface_name",
-    "usb_device",
+    "pnp_device",
 ]

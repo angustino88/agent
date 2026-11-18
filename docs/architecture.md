@@ -24,7 +24,7 @@ src/
   agent_cli.py            Command line (no Qt)
   core/                   Qt-free logic, unit tested on any OS
     agent_api/            Signed backend client, enrollment, identity/key store, session-log outbox
-    monitoring/           Device observations (USB parsing, hardware IDs) and the snapshot reporter
+    monitoring/           PnP devices, hardware IDs, the watch list and the snapshot reporter
     licensing/            License checks: configuration, safe probes, extraction, presets, results
     gateway/              Lab Mango endpoints of the service gateway
     otp/                  One-time password generation and delivery
@@ -46,8 +46,8 @@ tests/                    pytest: agent_api, monitoring, app types, shared clien
 | `remote_session` | `RemoteSessionCtrl`, `SessionTimer` | Session from login to logout, countdown, booking follow-up, session logs |
 | `activity` | `ActivityCtrl`, `ActivityMonitor` | Live activity status from cursor idle time; reports and local status log |
 | `booking_update` | `BookingUpdateCtrl` | Extend or end the running booking |
-| `monitoring` | `MonitoringCtrl`, `UsbDeviceCollector`, `LicenseCollector`, `StorageQuotaMonitor` | USB device observations; license checks and expiry warnings; local storage quota report |
-| `device_scan` | `DeviceScanCtrl` | Diagnostic dialog: reported USB devices and a live insert/remove log |
+| `monitoring` | `MonitoringCtrl`, `PnpDeviceCollector`, `LicenseCollector`, `StorageQuotaMonitor` | Expected devices by PnP ID (watch list from the policy), discovery on request; license checks and expiry warnings; local storage quota report |
+| `device_scan` | `DeviceScanCtrl` | Expected devices and their state, live plug/unplug log with PnP instance paths, Push = discovery snapshot |
 | `health_check`, `server_config`, `settings`, `app_info`, `app_update`, `log_check`, `systray`, `user_manual` | | Support dialogs and updates |
 
 ### Event bus
@@ -62,7 +62,8 @@ tests/                    pytest: agent_api, monitoring, app types, shared clien
 | `booking:changed` | — | `BookingUpdateCtrl` → `RemoteSessionCtrl` (re-read booking) |
 | `get:remote_session` | → `RemoteSession` or `None` | `RemoteSessionCtrl` |
 | `get:inactive_seconds` | → `float` | `ActivityCtrl` |
-| `get:usb_devices` | → `list[ObservedDevice]` | `MonitoringCtrl` |
+| `get:device_collector` | → `PnpDeviceCollector` | `MonitoringCtrl` |
+| `devices:discover` | — | Device Scan dialog → `MonitoringCtrl` (one discovery snapshot) |
 | `get:licenses` | → `list[LicenseObservation]` | `MonitoringCtrl` |
 | `get:license_checks` | → `list[CheckState]` | `MonitoringCtrl` |
 
@@ -76,7 +77,9 @@ tests/                    pytest: agent_api, monitoring, app types, shared clien
 | `RemoteSession` | remote session (`AgentSessionLogReport`) | One login, login → logout |
 | `remote_user_display_name`, `remote_computer`, `remote_ip` | same names in activity reports | Session logs call the client host `remote_host` |
 | agent UID, agent identity | `AgentIdentity.agent_uid` | Not a credential; the Ed25519 key is |
-| `ObservedDevice`, collector, snapshot | `DeviceObservation`, `collector_key`, `is_complete` | |
+| `ObservedDevice`, collector, snapshot | `DeviceObservation`, `collector_key`, `is_complete` | Collectors `pnp` (watch list) and `discovery` |
+| PnP ID, hardware ID | `EquipmentHardwareId` (`pnp_id`, `vector_device`) | Registered on the unit by a coordinator; `Equipment.serial_number` is a label only |
+| watch list | `expected_devices` in the monitoring policy (`ExpectedDevice`) | |
 | computer name | Windows host name | The old term "SKU" is no longer used by the agent |
 | web app (`frontend_url`) | Lab Mango frontend | |
 
@@ -108,6 +111,6 @@ tests/                    pytest: agent_api, monitoring, app types, shared clien
 | `%PROGRAMDATA%\LabMango\agent\identity.json` | Agent UID, backend URL and key, key store tier | Written by `enroll` |
 | Credential Manager `labmango_agent` / `keys\` | Ed25519 private key | Never leaves the computer |
 | `%PROGRAMDATA%\LabMango\agent\session_log_outbox.json` | Session logs not yet acknowledged | |
-| `%PROGRAMDATA%\LabMango\agent\observations_usb.json` | Last sequence and the pending observation batch | |
+| `%PROGRAMDATA%\LabMango\agent\observations_pnp.json`, `observations_discovery.json` | Last sequence and the pending observation batch per collector | |
 | `%LOCALAPPDATA%\LabMango\settings\app_settings.yml` | Web app URL, TLS, AD, admins, safe mode | Older files stay valid |
 | `%LOCALAPPDATA%\LabMango\logs\logs.db` | Local session and status log (SQLite) | Column names kept from earlier versions |

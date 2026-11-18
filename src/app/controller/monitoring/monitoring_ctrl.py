@@ -1,4 +1,4 @@
-"""Background monitoring: USB devices (reported to the backend), tool licenses (local warnings) and
+"""Background monitoring: expected devices by PnP ID (reported to the backend), license checks and
 shared-drive storage quota (local report)."""
 
 from __future__ import annotations
@@ -8,10 +8,10 @@ from typing import Optional
 
 from src.app.controller.monitoring.license_collector import LicenseCollector, warning_text
 from src.app.controller.monitoring.storage_quota_monitor import StorageQuotaMonitor
-from src.app.controller.monitoring.usb_device_collector import UsbDeviceCollector
+from src.app.controller.monitoring.pnp_device_collector import PnpDeviceCollector
 from src.app.model.config.task_schedule_config import TaskScheduleConfig
 from src.core.agent_api import errors as agent_errors
-from src.core.monitoring import USB_COLLECTOR_KEY, DeviceObservationReporter
+from src.core.monitoring import DISCOVERY_COLLECTOR_KEY, PNP_COLLECTOR_KEY, DeviceObservationReporter, WatchList
 from src.mvc.base_controller import BaseController
 from src.mvc.task_schedule import task
 
@@ -20,8 +20,8 @@ class MonitoringCtrl(BaseController):
     def __init__(self):
         super().__init__()
         self._initialized = False
-        self._usb_reporter: Optional[DeviceObservationReporter] = None
-        self._usb_collector: Optional[UsbDeviceCollector] = None
+        self._device_reporter: Optional[DeviceObservationReporter] = None
+        self._device_collector: Optional[PnpDeviceCollector] = None
         self._storage_quota_monitor: Optional[StorageQuotaMonitor] = None
         self._license_collector: Optional[LicenseCollector] = None
 
@@ -42,23 +42,28 @@ class MonitoringCtrl(BaseController):
         )
         self._storage_quota_monitor.exception.connect(self._log_exception)
 
-        self._usb_reporter = self._backend_model.device_observation_reporter(USB_COLLECTOR_KEY)
-        self._usb_collector = UsbDeviceCollector(self._usb_reporter, TaskScheduleConfig.USB_DEVICE_COLLECTOR)
-        self._usb_collector.device_connected.connect(
-            lambda name, key: self._logger.info(f"[USB] Connected: {name} ({key})")
+        self._device_reporter = self._backend_model.device_observation_reporter(PNP_COLLECTOR_KEY)
+        self._device_collector = PnpDeviceCollector(
+            self._device_reporter,
+            self._backend_model.device_observation_reporter(DISCOVERY_COLLECTOR_KEY),
+            TaskScheduleConfig.PNP_DEVICE_SCAN,
         )
-        self._usb_collector.device_disconnected.connect(
-            lambda name, key: self._logger.info(f"[USB] Disconnected: {name} ({key})")
+        self._device_collector.watched_connected.connect(
+            lambda name, pnp_id: self._logger.info(f"[Devices] Connected: {name} ({pnp_id})")
         )
-        self._usb_collector.exception.connect(self._log_exception)
-        self._usb_collector.start()
-        self._logger.info("[USB] Collector started")
+        self._device_collector.watched_disconnected.connect(
+            lambda name, pnp_id: self._logger.info(f"[Devices] Disconnected: {name} ({pnp_id})")
+        )
+        self._device_collector.exception.connect(self._log_exception)
+        self._device_collector.start()
+        self._logger.info("[Devices] Collector started")
 
         self._license_collector = LicenseCollector(self._backend_model, app_settings, logger=self._logger)
 
         self.expose_get("licenses", lambda: self._license_collector.licenses if self._license_collector else [])
         self.expose_get("license_checks", lambda: self._license_collector.states if self._license_collector else [])
-        self.expose_get("usb_devices", lambda: self._usb_collector.devices if self._usb_collector else [])
+        self.expose_get("device_collector", lambda: self._device_collector)
+        self.bus_subscribe("devices:discover", lambda _: self.request_discovery())
         self._initialized = True
         return self
 
@@ -68,23 +73,36 @@ class MonitoringCtrl(BaseController):
     def shutdown(self):
         """Stop background threads (call on application exit)."""
         try:
-            if self._usb_collector and self._usb_collector.isRunning():
-                self._usb_collector.kill()
-                self._usb_collector.wait()
-                self._logger.info("[USB] Collector stopped")
+            if self._device_collector and self._device_collector.isRunning():
+                self._device_collector.kill()
+                self._device_collector.wait()
+                self._logger.info("[Devices] Collector stopped")
         except Exception as e:
             self._logger.exception(f"[Monitoring] Shutdown error: {e}")
 
     @task(schedule=TaskScheduleConfig.MONITORING_POLICY_SYNC, heavy=True)
     def sync_monitoring_policy(self):
-        """Pick up a new enrollment generation or interface catalog (cheap 304 when unchanged)."""
+        """Pick up the watch list (expected devices) and a new enrollment generation; 304 when unchanged."""
         if not self._initialized or not self._backend_model.is_enrolled:
             return
         try:
-            policy = self._usb_reporter.refresh_policy()
-            self._usb_collector.set_interface_catalog(policy.interface_names)
+            policy = self._device_reporter.refresh_policy()
         except agent_errors.AgentApiError as e:
             self._logger.warning(f"[Monitoring] Policy refresh failed: {e}")
+            return
+        watch_list = WatchList.from_policy(policy.expected_devices)
+        if watch_list != self._device_collector.watch_list:
+            self._logger.info(
+                f"[Devices] Watching {len(watch_list.expected)} expected device(s)"
+                + (f", {len(watch_list.unregistered)} without a registered PnP ID" if watch_list.unregistered else "")
+            )
+        self._device_collector.set_watch_list(watch_list)
+
+    def request_discovery(self) -> None:
+        """Admin action: send the connected USB devices once so a coordinator can register them."""
+        if self._device_collector is not None:
+            self._device_collector.request_discovery()
+            self._logger.info("[Devices] Discovery snapshot requested")
 
     @task(schedule=TaskScheduleConfig.LICENSE_CHECKS, heavy=True)
     def run_license_checks(self):
@@ -109,8 +127,8 @@ class MonitoringCtrl(BaseController):
             self._storage_quota_monitor.run()
 
     @property
-    def usb_collector(self) -> Optional[UsbDeviceCollector]:
-        return self._usb_collector
+    def device_collector(self) -> Optional[PnpDeviceCollector]:
+        return self._device_collector
 
     @property
     def license_collector(self) -> Optional[LicenseCollector]:

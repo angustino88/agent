@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Any, Optional
 
-from ..monitoring.devices import HardwareId
+from ..monitoring.devices import HardwareId, normalize_hardware_id
 from .checks import ExtractFormat, LicenseCheck
 from .models import CarrierType, LicenseObservation
 
@@ -154,7 +154,9 @@ def to_observations(rows: list[dict[str, str]], check: LicenseCheck) -> list[Lic
         if carrier_type in (CarrierType.DEVICE, CarrierType.DONGLE):
             if not carrier_id:
                 continue  # a device license whose device the tool did not name cannot be attributed
-            hardware_id = HardwareId(carrier.hardware_id_kind, carrier_id)
+            hardware_id = HardwareId(
+                carrier.hardware_id_kind, normalize_hardware_id(carrier.hardware_id_kind, carrier_id)
+            )
         else:
             carrier_id = ""
         equipment_uid = carrier.equipment_uid if carrier_type == CarrierType.EQUIPMENT else ""

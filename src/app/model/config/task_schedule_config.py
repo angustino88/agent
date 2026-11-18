@@ -9,8 +9,8 @@ class TaskScheduleConfig:
     ACTIVITY_MONITOR = Schedule(type="interval", every=1, unit="seconds")
     SESSION_TIMER = Schedule(type="interval", every=1, unit="seconds")
     LOGIN_EVENT_MONITOR = Schedule(type="interval", every=1, unit="seconds")
-    MONITORING_POLICY_SYNC = Schedule(type="interval", every=10, unit="minutes", run_at_start=True)
-    USB_DEVICE_COLLECTOR = 5  # seconds between USB scans (collector thread)
+    MONITORING_POLICY_SYNC = Schedule(type="interval", every=2, unit="minutes", run_at_start=True)  # watch list; 304 when unchanged
+    PNP_DEVICE_SCAN = 5  # seconds between PnP scans (collector thread)
     LICENSE_CHECKS = Schedule(
         type="interval", every=15, unit="minutes", run_at_start=True
     )  # each check has its own interval
