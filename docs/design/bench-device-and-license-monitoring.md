@@ -1,7 +1,8 @@
 # Bench device and license monitoring (agent design)
 
-**Status:** Devices: implemented end to end (registered PnP IDs, watch list, discovery; agent, backend and web app). License checks: implemented in the agent; backend routes pending. Backend contract: lab-mango
-`docs/proposals/agent-bench-devices-and-licenses.md` (T2, needs owner approval).
+**Status:** Devices: implemented end to end (registered PnP IDs, watch list, discovery; agent, backend and web app). License checks: implemented end to end (agent runner, backend routes, matching and inventory updates).
+Backend: lab-mango `docs/proposals/agent-bench-devices-and-licenses.md` (approved, D1–D9) and
+`core/labs/features/license_checks/docs/spec.md`.
 **Builds on:** the USB collector and `DeviceObservationReporter` (`src/core/monitoring/`).
 
 ## 1. Goals
@@ -108,8 +109,13 @@ proposal, section 5.4, decision D8). For a license on a CANcase borrowed from an
 "connected" rule is what applies: the CANcase must be registered with its PnP ID (so this computer
 reports it connected) and its Vector device name (so the license finds it), section 2.
 
-Where the checks come from: `GET /agent/license-checks` when the backend advertises
-`license_checks`; until then the presets enabled in `licenses.builtin_checks` (local settings).
+Where the checks come from: `GET /agent/license-checks` (ETag) when the backend advertises
+`license_checks`; against an older backend, the presets enabled in `licenses.builtin_checks` (local
+settings). Each run goes to `POST /agent/license-checks/{key}/actions/report`; the acknowledgment's
+`result` is `applied`, `recorded` (not `ok`), `stale` or `outdated_revision`. A 4xx other than 401/429
+(the check no longer runs here, or the run is refused) drops the pending report; transient errors keep
+it for the next cycle. A check the agent rejects while parsing is reported as `rejected` with its
+revision.
 Each check runs on its own interval (≥ 15 minutes); the scheduler wakes every 15 minutes. A changed
 `revision` runs at once. A failed run keeps the last known licenses for the UI and reports the
 failure; only an `ok` run replaces the license set.

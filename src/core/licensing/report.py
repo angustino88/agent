@@ -1,4 +1,4 @@
-"""Wire body of ``POST /agent/license-checks/{key}/actions/report`` (proposed backend route).
+"""Wire body of ``POST /agent/license-checks/{key}/actions/report`` (lab-mango `core/agents/api/license_checks.py`).
 
 One body per run of one check. When ``status`` is ``ok`` the license list is complete for that
 check and carrier set, so licenses it no longer lists are gone; for any other status the backend

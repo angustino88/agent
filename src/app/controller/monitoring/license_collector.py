@@ -91,9 +91,14 @@ class LicenseCollector:
             if items is None:
                 return  # unchanged (304)
             backend_checks, rejected = parse_checks(items)
+            revisions = {
+                item.get("key"): item.get("revision") for item in items if isinstance(item, dict)
+            }
             for key, reason in rejected.items():
                 self._log("warning", f"check '{key}' rejected: {reason}")
-                self._report(self._rejected_result(key, reason))
+                revision = revisions.get(key)
+                if isinstance(revision, int) and revision >= 1:  # only a check the backend can identify
+                    self._report(self._rejected_result(key, reason, revision))
         checks, source = (
             (backend_checks, "backend") if backend_checks is not None else (self._builtin_checks(), "builtin")
         )
@@ -140,8 +145,8 @@ class LicenseCollector:
             self._log("info", f"report deferred: {e}")
 
     @staticmethod
-    def _rejected_result(key: str, reason: str) -> CheckResult:
-        return CheckResult(key, 0, CheckStatus.REJECTED, datetime.now(), 0, (), "invalid_check", reason)
+    def _rejected_result(key: str, reason: str, revision: int) -> CheckResult:
+        return CheckResult(key, revision, CheckStatus.REJECTED, datetime.now(), 0, (), "invalid_check", reason[:512])
 
     # ------------------------------------------------------------------ results
 

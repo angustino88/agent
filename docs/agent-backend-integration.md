@@ -68,7 +68,8 @@ Redirects are never followed. Implementation: `src/core/agent_api/signing.py`, `
 | Extend booking | `PATCH /api/labs/lab-bookings/{id}` | `POST /agent/bookings/actions/extend` with readable refusal reasons (`BookingUpdateCtrl`) |
 | End booking | `PATCH ... status=done` | `POST /agent/bookings/actions/complete` |
 | Monitored devices | filter list from `/api/labs/lab-computers`, events to `/api/labs/lab-monitoring` | the policy's `expected_devices` (watch list, registered PnP IDs) → only those devices, as complete snapshots to `POST /agent/device-observations/actions/report` with `hardware_ids`; the backend matches registered IDs (`PnpDeviceCollector`, `DeviceObservationReporter`) |
-| Monitoring policy | — | `GET /agent/monitoring-policy` every 10 min with ETag (`MonitoringCtrl`) |
+| Monitoring policy | — | `GET /agent/monitoring-policy` every 2 min with ETag (`MonitoringCtrl`) |
+| License checks | — | `GET /agent/license-checks` with ETag, then each due run to `POST /agent/license-checks/{key}/actions/report` (`LicenseCollector`, `BackendModel`); the backend matches by license serial and updates expiry and version |
 | Backend available | `GET <backend root>` | `GET /agent/info` |
 
 The backend decides booking eligibility (approval, this computer's bench, time window) and answers

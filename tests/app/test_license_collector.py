@@ -85,13 +85,18 @@ def test_builtin_preset_runs_when_the_backend_serves_no_checks():
 
 def test_backend_checks_replace_builtins_and_are_reported():
     item = dict(VECTOR_LICENSE_CLIENT, key="vector-lab", revision=2)
-    backend = Backend(supported=True, items=[item, {"key": "broken", "probe": {"type": "shell"}}])
+    broken = {"key": "broken", "revision": 4, "probe": {"type": "shell"}}
+    unknown = {"key": "nameless", "probe": {"type": "shell"}}  # no revision: the backend could not place it
+    backend = Backend(supported=True, items=[item, broken, unknown])
     runner = Runner()
     collector = LicenseCollector(backend, settings(), runner=runner)
     collector.sync_checks()
     collector.run_due()
     assert [c.key for c, _ in runner.calls] == ["vector-lab"]
-    assert [(r.check_key, r.status) for r in backend.reports] == [("broken", "rejected"), ("vector-lab", "ok")]
+    assert [(r.check_key, r.revision, r.status) for r in backend.reports] == [
+        ("broken", 4, "rejected"),
+        ("vector-lab", 2, "ok"),
+    ]
 
 
 def test_each_check_runs_on_its_interval_and_a_new_revision_runs_at_once():

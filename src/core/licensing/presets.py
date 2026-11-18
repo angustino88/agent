@@ -1,8 +1,9 @@
 """Built-in check definitions.
 
-The web app offers these as templates when an administrator adds a check; the agent also runs the
-enabled ones on its own while the backend does not serve ``/agent/license-checks`` yet. A preset is
-an ordinary check configuration: no vendor gets special code.
+The web app offers the same definitions as templates (lab-mango ``license_checks/presets.py``) when an
+administrator adds a check; the agent runs the ones enabled in ``licenses.builtin_checks`` only when
+the backend does not advertise ``license_checks``. Preset executables are trusted while TLS is off.
+A preset is an ordinary check configuration: no vendor gets special code.
 """
 
 from __future__ import annotations

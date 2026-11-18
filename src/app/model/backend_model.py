@@ -262,9 +262,18 @@ class BackendModel(BaseModel):
         for check_key, (idempotency_key, body) in pending.items():
             try:
                 self._client.report_license_check(check_key, body, idempotency_key)
-            except (agent_errors.ValidationFailed, agent_errors.Conflict) as e:
-                self._logger.warning(f"[Licenses] Report for {check_key} rejected: {e}")
+            except (agent_errors.Unauthenticated, agent_errors.NotEnrolled) as e:
+                self._logger.info(f"[Licenses] Report for {check_key} deferred: {e}")
+                ok = False
+                continue
             except agent_errors.AgentApiError as e:
+                if not e.is_retryable:
+                    # 404: the check no longer runs here; 409/422: the backend refuses this run for good.
+                    self._logger.warning(f"[Licenses] Report for {check_key} dropped: {e}")
+                    with self._lock:
+                        if self._pending_license_reports.get(check_key, (None,))[0] == idempotency_key:
+                            del self._pending_license_reports[check_key]
+                    continue
                 self._logger.info(f"[Licenses] Report for {check_key} deferred: {e}")
                 ok = False
                 continue
