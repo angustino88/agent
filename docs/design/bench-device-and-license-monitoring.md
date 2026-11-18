@@ -6,76 +6,75 @@
 
 ## 1. Goals
 
-1. Monitor only what matters: equipment that belongs on this computer's bench, plus *additional*
-   lab equipment plugged in. Mice, keyboards, phones and personal sticks never leave the computer.
-2. Identify equipment by what the hardware reports, not by the inventory's `serial_number`, which
-   is typed by people (part numbers, USB product IDs, labels) and does not match the device.
+1. Monitor only the equipment mapped to this computer (its expected devices). Mice, keyboards,
+   phones and personal sticks never leave the computer.
+2. Identify equipment by the PnP ID Windows reports, registered on the inventory unit, not by the
+   inventory's `serial_number`, which is typed by people (part numbers, labels).
 3. Read tool licenses held by lab hardware or by the computer (first: Vector), so the backend
    keeps `License.expiry_date` / `max_version` current and warns before expiry.
 4. Show both in the tray app: warnings and the device dialog.
 
-## 2. Identity: hardware IDs and device links
+## 2. Identity: registered PnP IDs
 
-The agent reports **hardware IDs**: values read from the device. A coordinator **links** each
-physical unit's hardware ID to its inventory record once, in the web app. Matching, the bench
-watch list and license carriers all use links; `serial_number` remains a human label.
+What the agent can read for a device is its **PnP device instance ID** (`Win32_PnPEntity.PNPDeviceID`;
+Device Manager → Details → *Device instance path*), e.g. `USB\VID_1248&PID_1073\007113-585343`.
+A coordinator registers that ID on the inventory unit once (`EquipmentHardwareId`, kind `pnp_id`;
+backend proposal, section 3.1). `Equipment.serial_number` stays a human label and is never used.
 
-| Kind | Read from | Value | Notes |
-|---|---|---|---|
-| `usb_serial` | Windows USB instance ID when the device has a serial descriptor | `VID:PID:serial` | Unique per device, any computer, any port |
-| `vector_device` | Vector XL Driver Library | `<article>-<serial>`, e.g. `007113-585343` | Same serial as Vector Hardware Config |
-| `usb_port` | Windows instance ID when the device has no serial (Windows adds `&…`) | full instance ID | Changes with the USB port; valid only on this computer |
-| model | USB vendor and product ID | `VID:PID` | Not an identity: tells *what* it is, not *which one* |
+| PnP ID | Example | Valid |
+|---|---|---|
+| With a USB serial | `USB\VID_0403&PID_6001\A12BC3` | on any port and computer |
+| Without (Windows adds `&…`) | `USB\VID_046D&PID_C52B\5&2A3C0F1&0&2` | on that USB port of that computer only (registered with the computer) |
 
-Rules in `src/core/monitoring/devices.py`: an instance ID whose last segment contains `&` is a
-Windows-generated port ID, never a serial; values are upper-case; at most 4 IDs per device.
-
-### Linking flow
-
-1. A CANcase is plugged into the bench computer for the first time. Its model `1248:1073` is a lab
-   model, so the agent reports it with its hardware IDs (an *additional*, unlinked device).
-2. The backend suggests the bench's unlinked VN1630A units; the coordinator confirms "CANcase 3".
-3. The next policy lists CANcase 3 in `watched_devices` with its hardware IDs. From then on it is
-   matched wherever it is plugged in, and its licenses attach to it.
+A Vector license names its carrier by Vector device name (`DeviceName`, e.g. `007113-585343`). The
+CANcase therefore gets a second ID, kind `vector_device`, registered from the License Client. If the
+Vector PnP instance path ends with the same name (to check once in Device Manager), the agent can
+add it itself and the second registration is not needed.
 
 ## 3. What the agent reports
 
+This is the earlier agent's model, kept: the backend maps equipment to computers
+(`ExpectedDevice`); the agent pulls that list with its PnP IDs and reports changes.
+
 | Device | Reported | Backend sees |
 |---|---|---|
-| Hardware ID in `watched_devices` | yes | the bench unit, connected |
-| Watched unit not connected | absent from the complete snapshot | the bench unit, disconnected (missing) |
-| Lab model (`device_models`), not watched | yes | additional device: linked unit from elsewhere, or unlinked with link suggestions |
+| PnP ID on the watch list (`expected_devices`) | yes, connected | the expected unit: present |
+| Watched unit not connected | absent from the complete snapshot | the expected unit: missing (alert if `notify_on_disconnect`) |
 | Anything else | no | — |
+| All connected devices, on an admin's **Push** in the Device Scan dialog | once, as a discovery snapshot | unlinked devices a coordinator can **Link** (registers the PnP ID) |
+
+Snapshots are sent on change (3-scan debounce, 5 s scans) and every half `freshness_seconds`; each
+observation carries `hardware_ids: [{kind: "pnp_id", value}]`. Additional devices (lab equipment
+models from another bench) are a later phase (`device_models`).
 
 ```mermaid
 flowchart LR
-    P[Monitoring policy<br/>watched_devices, device_models] --> F[Watch filter]
+    W[Web app<br/>register PnP ID, map ExpectedDevice] --> P[Monitoring policy<br/>expected_devices + PnP IDs]
+    P --> F[Watch filter]
     U[USB collector WMI] --> F
-    V[Vector collector XL driver] --> F
-    F -->|complete snapshot| R1[SnapshotReporter usb / vector]
+    F -->|complete snapshot of watched devices| B[(Backend: match PnP ID -> unit)]
+    S[Device Scan dialog: Push] -->|discovery snapshot| B
     C[License checks<br/>from the web app] --> L[License check runner]
-    L -->|one result per run| R2[license-checks report]
-    R1 --> B[(Backend: links, matching)]
-    R2 --> B
+    L -->|one result per run| B
     F --> UI[Device dialog + tray warnings]
     L --> UI
 ```
 
-Compatibility: with a backend that sends no watch list yet, the agent keeps today's behaviour.
+Compatibility: while the policy has no `expected_devices`, the agent keeps today's behaviour.
 
 ## 4. Collectors
 
 | Collector | Source | Reports | Needs |
 |---|---|---|---|
-| `usb` | WMI `Win32_PnPEntity` (exists) | watched / lab-model USB devices with hardware IDs and VID:PID | — |
-| `vector` | Vector XL Driver Library (`vxlapi64.dll`, via `ctypes`) | Vector interfaces: hardware type, serial, channels | Vector driver installed |
+| `usb` | WMI `Win32_PnPEntity` (exists) | devices on the watch list, by PnP ID | — |
+| `discovery` | same scan, on Push | all connected devices, once | admin login |
 | license checks | configured per computer in the web app (presets: Vector License Client) | licenses per carrier, one result per run | see 4.2 |
 
 ### 4.1 Vector devices
 
-`xlOpenDriver` → `xlGetDriverConfig` (channels with hardware type, index and serial) →
-`xlCloseDriver`; channels grouped by serial into one device with `vector_device` and, when the
-USB entry is found, `usb_serial`. Read-only: no ports opened, no configuration changed.
+No separate Vector device reader is needed: a CANcase is a USB device with a PnP ID like any other.
+Only its license-carrier name (`vector_device`) has to be registered once, unless its instance path
+ends with that name (section 2).
 
 ### 4.2 License checks
 
@@ -104,8 +103,8 @@ The backend updates a license only if the report is plausible for this computer:
 computer, a unit placed on its bench, or a unit this computer's agent reports as **connected** in its
 device observations; and the license is assigned to that carrier or to this computer (backend
 proposal, section 5.4, decision D8). For a license on a CANcase borrowed from another bench, the
-"connected" rule is what applies, so the Vector device collector (4.1) must report the device with
-the same hardware ID the License Client gives (`DeviceName`, kind `vector_device`).
+"connected" rule is what applies: the CANcase must be registered with its PnP ID (so this computer
+reports it connected) and its Vector device name (so the license finds it), section 2.
 
 Where the checks come from: `GET /agent/license-checks` when the backend advertises
 `license_checks`; until then the presets enabled in `licenses.builtin_checks` (local settings).
@@ -171,9 +170,9 @@ tests/licensing/             validation, extraction (real Vector sample), safety
 
 ## 6. User interface (tray app)
 
-- **Device dialog**: each device shows its link: "CANcase 3 (this bench)", "CANcase 7 (bench B7,
-  additional)" or "Not linked — link it in Lab Mango" with a button that opens the unit's page.
-  Hardware IDs are shown so an admin can tell the coordinator which device it is.
+- **Device dialog** (Device Scan): the expected devices and whether each is connected; the live scan
+  log with each device's PnP instance path (copyable, to register it on the unit); **Push** sends a
+  discovery snapshot so the coordinator can Link a new device in Lab Monitoring.
 - **License checks in the device dialog** (implemented as a list in the dialog's log; a table needs
   a `.ui` change): each check with its source (web app or built-in) and last status, and the
   licenses it found with carrier, expiry, version and days left.
@@ -182,7 +181,7 @@ tests/licensing/             validation, extraction (real Vector sample), safety
   "CANalyzer PRO on 007113-585343 expires in 10 days (09 Apr 2027). Reactivate it in the Vector
   License Client."
 
-Linking itself stays in the web app: the agent is authenticated as a device, not as a coordinator.
+Registering and mapping stay in the web app: the agent is authenticated as a device, not as a coordinator.
 
 ## 7. Failure behaviour
 
@@ -199,6 +198,6 @@ Linking itself stays in the web app: the agent is authenticated as a device, not
 
 | Phase | Agent | Backend | Done when |
 |---|---|---|---|
-| 1 | Hardware IDs; watch filter; Vector device collector; link status in the dialog | Links, suggestions, link matching, `usb_ids`, watch list | Bench units show connected/missing by link; additional devices get suggestions |
+| 1 | Watch list from the policy; report mapped PnP IDs with `hardware_ids`; Push = discovery snapshot | `EquipmentHardwareId`, Link stores PnP IDs, matching by hardware ID, `expected_devices` in the policy | Expected devices show present / missing from the agent's reports |
 | 2 | **Done:** generic check runner, safety rules, Vector preset, reporting client, tray warnings | License checks (model, admin UI, routes), runs, observations, matching | A check configured in the web app runs on its computers and its licenses show on the license records |
 | 3 | More presets from captured output (FlexNet, CodeMeter, license files); license table in the dialog | Expiry/version updates (D1), notifications, "found on lab hardware" | Lab Mango expiry dates follow the tools |
