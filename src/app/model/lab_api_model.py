@@ -1,5 +1,9 @@
+import threading
+import uuid
+import ipaddress
 import requests
 from datetime import datetime
+from typing import Optional
 from src.mvc.base_model import BaseModel
 from src.mvc.task_schedule import task, Schedule
 from src.utils.http_client import ClientRequest
@@ -7,9 +11,18 @@ from src.utils.datetime import iso_datetime
 from src.service_gateway import GatewayClient
 from src.core.api.lab_api_core_service import LabApiCoreService
 from src.core.api.lab_api_service_gateway import LabApiServiceGateway
+from src.core.agent_api import (
+    ActivityReport,
+    AgentApiClient,
+    AgentIdentity,
+    BookingResult,
+    IdentityStore,
+    SessionLogOutbox,
+    errors as agent_errors,
+    load_credentials,
+)
 from src.app.model.types.booking_info import BookingInfo
 from src.app.model.types.booking_status import BookingStatus
-from src.app.model.types.approval_status import ApprovalStatus
 from src.app.model.update_checker import UpdateChecker, PackageUpdate
 from src.app.model.config.task_schedule_config import TaskScheduleConfig
 
@@ -22,6 +35,10 @@ class LabApiModel(BaseModel):
         self._client_service_gateway = None
         self._service_core = None
         self._service_gateway = None
+        self._agent_store: Optional[IdentityStore] = None
+        self._agent_client: Optional[AgentApiClient] = None
+        self._session_log_outbox: Optional[SessionLogOutbox] = None
+        self._agent_lock = threading.Lock()
 
     def init(self):
         """Initialize services and clients."""
@@ -65,6 +82,18 @@ class LabApiModel(BaseModel):
 
         # Update checker (needs service gateway & logger)
         self._update_checker = UpdateChecker(self._service_gateway, self._logger)
+
+        # Signed agent device API (/agent/...): identity created by `LabMango enroll`
+        self._agent_store = IdentityStore(self._app_config.AGENT_DIR)
+        self._agent_client = AgentApiClient(
+            "",
+            timeout=5,
+            logger=self._logger if self._app_config_dynamic.app_debug_enabled else None,
+        )
+        self._session_log_outbox = SessionLogOutbox(
+            self._app_config.SESSION_LOG_OUTBOX_FILE, logger=self._logger
+        )
+        self.reload_agent_identity()
 
     @property
     def client(self) -> ClientRequest:
@@ -233,6 +262,12 @@ class LabApiModel(BaseModel):
         return self._update_checker.check(current_version)
 
     def check_backend_alive(self) -> bool:
+        if self._agent_client and self._agent_client.base_url:
+            try:
+                self._agent_client.get_info()
+                return True
+            except agent_errors.AgentApiError:
+                return False
         try:
             requests.get(self.backend_url, verify=False, timeout=3)
             return True
@@ -249,35 +284,183 @@ class LabApiModel(BaseModel):
     def check_service_gateway_alive(self) -> bool:
         return self._client_service_gateway.check_alive(timeout=3) if self._client_service_gateway else False
 
-    def get_booking_info(self, booking_code: str) -> BookingInfo:
-        response = self.service.get_booking_by_code(booking_code, timeout=3)
-        if not response.success or not response.data:
-            if response.status_code == 404:
-                raise LookupError(f"Booking does not exist")
-            else:
-                raise ValueError(f"Failed to get booking info")
+    # ==================================================================
+    # Agent device API (signed /agent/... routes)
+    # ==================================================================
 
-        data = response.data
+    @property
+    def agent_api(self) -> AgentApiClient:
+        return self._agent_client
 
-        def parse_datetime(key: str):
-            value = data.get(key)
-            if not value:
-                return None
-            dt = datetime.fromisoformat(value).astimezone()
-            return dt.replace(tzinfo=None, second=0)
+    @property
+    def agent_identity(self) -> Optional[AgentIdentity]:
+        return self._agent_client.identity if self._agent_client else None
 
+    @property
+    def is_agent_enrolled(self) -> bool:
+        return bool(self._agent_client and self._agent_client.is_enrolled)
+
+    def reload_agent_identity(self) -> bool:
+        """(Re)load the enrolled identity and key from disk; returns True when usable."""
+        with self._agent_lock:
+            identity, key = load_credentials(self._agent_store)
+            if identity is None or not identity.is_enrolled:
+                self._agent_client.set_credentials(None, None)
+                self._logger.warning("[Agent] Not enrolled. Run `LabMango enroll --url ... --agent-uid ...`.")
+                return False
+            if key is None:
+                self._agent_client.set_credentials(None, None)
+                self._logger.error(f"[Agent] Key for agent {identity.agent_uid} is missing; re-enrollment needed.")
+                return False
+            self._agent_client.base_url = identity.backend_url
+            self._agent_client.verify = identity.extra.get("tls_verify", True)
+            self._agent_client.set_credentials(identity, key)
+            self._logger.info(f"[Agent] Identity {identity.agent_uid} on {identity.backend_key} loaded.")
+            return True
+
+    def _require_agent(self) -> AgentApiClient:
+        if not self.is_agent_enrolled and not self.reload_agent_identity():
+            raise agent_errors.NotEnrolled("This computer is not enrolled with Lab Mango. Ask an administrator to enroll it.")
+        return self._agent_client
+
+    @task(schedule=TaskScheduleConfig.AGENT_HEARTBEAT, heavy=True)
+    def send_agent_heartbeat(self):
+        """Liveness for operators, then retry any queued session logs."""
+        if not self.is_agent_enrolled and not self.reload_agent_identity():
+            return False
         try:
-            return BookingInfo(
-                lab_id=data["lab_information"]["id"],
-                booking_id=data["id"],
-                booking_code=data["booking_code"],
-                booking_creator=data["creator"]["username"].lower(),
-                booking_project=data["lab_project"]['project_name'],
-                booking_computer=data["computer"]["sku"],
-                booking_status=BookingStatus(data["status"]),
-                from_datetime=parse_datetime("from_date_time"),
-                to_datetime=parse_datetime("to_date_time"),
-                approval_status=ApprovalStatus(data["approval_status"])
-            )
-        except (KeyError, ValueError, TypeError) as e:
-            raise ValueError("Failed to parse booking info")
+            self._agent_client.heartbeat()
+        except agent_errors.Unauthenticated as e:
+            self._logger.error(f"[Agent] Heartbeat rejected (agent revoked or clock skew?): {e}")
+            return False
+        except agent_errors.AgentApiError as e:
+            self._logger.warning(f"[Agent] Heartbeat failed: {e}")
+            return False
+        self.flush_session_logs()
+        return True
+
+    def report_activity(self, report: ActivityReport) -> bool:
+        try:
+            self._require_agent().report_activity(report)
+            return True
+        except agent_errors.AgentApiError as e:
+            self._logger.warning(f"[Agent] Activity report failed: {e}")
+            return False
+
+    def queue_session_log(
+        self,
+        login_at: datetime,
+        logout_at: datetime,
+        active_seconds: float,
+        remote_user: str,
+        remote_ip: str = "",
+        remote_host: str = "",
+        booking_code: Optional[str] = None,
+    ) -> str:
+        """Persist a finished session for delivery; returns its event_key (idempotency key)."""
+        event_key = str(uuid.uuid4())
+        self._session_log_outbox.add({
+            "event_key": event_key,
+            "login_at": _aware_iso(login_at),
+            "logout_at": _aware_iso(logout_at),
+            "active_duration_seconds": max(0.0, float(active_seconds)),
+            "remote_user": (remote_user or "-")[:255],
+            "remote_ip": _ip_or_none(remote_ip),
+            "remote_host": (remote_host or "")[:255] or None,
+            "booking_code": booking_code or None,
+            "agent_version": str(self._app_config.APP_VERSION)[:64],
+        })
+        return event_key
+
+    def flush_session_logs(self) -> int:
+        if not self.is_agent_enrolled:
+            return 0
+        return self._session_log_outbox.flush(self._agent_client)
+
+    # ---- bookings ------------------------------------------------------
+
+    @staticmethod
+    def _to_booking_info(result: BookingResult, status: BookingStatus) -> BookingInfo:
+        return BookingInfo(
+            booking_code=result.booking_code,
+            booking_creator=(result.booked_for or "").lower(),
+            from_datetime=_local_minutes(result.starts_at),
+            to_datetime=_local_minutes(result.ends_at),
+            booking_status=status,
+        )
+
+    def get_booking_info(self, booking_code: str) -> BookingInfo:
+        """Read-only eligibility check (does not check in).
+
+        Raises LookupError when the code cannot be used on this computer now: unknown, not
+        approved, cancelled, finished, other bench or outside its window (the backend gives one
+        answer for all of these on purpose).
+        """
+        result = self._require_agent().validate_booking(booking_code)
+        if not result.ok:
+            raise LookupError("Booking is not valid for this computer at this time")
+        return self._to_booking_info(result, BookingStatus.AVAILABLE)
+
+    def check_booking_running(self, booking_code: str) -> Optional[BookingInfo]:
+        """Re-read a running booking; ``None`` when it has ended, been completed or cancelled."""
+        result = self._require_agent().validate_booking(booking_code)
+        return self._to_booking_info(result, BookingStatus.IN_PROGRESS) if result.ok else None
+
+    def check_in_booking(self, booking_code: str) -> BookingInfo:
+        """Start (or resume) the booking for this login; safe to repeat."""
+        result = self._require_agent().check_in_booking(booking_code)
+        if not result.ok:
+            raise PermissionError("Booking cannot be started on this computer now")
+        return self._to_booking_info(result, BookingStatus.IN_PROGRESS)
+
+    def complete_booking(self, booking_code: str) -> None:
+        result = self._require_agent().complete_booking(booking_code)
+        if not result.ok:
+            raise RuntimeError("Booking could not be ended (it may already be finished)")
+
+    def extend_booking(self, booking_code: str, new_end: datetime) -> BookingInfo:
+        """Move the end of a running booking. Raises ValueError with a readable reason."""
+        try:
+            result = self._require_agent().extend_booking(booking_code, _aware_iso(new_end))
+        except agent_errors.BookingExtensionRejected as e:
+            raise ValueError(_extension_reason(e)) from e
+        if not result.ok:
+            raise RuntimeError("Booking could not be extended (no running booking on this computer)")
+        return self._to_booking_info(result, BookingStatus.IN_PROGRESS)
+
+
+def _aware_iso(value: datetime) -> str:
+    """Naive datetimes are local wall-clock time; send them with their UTC offset."""
+    if value.tzinfo is None:
+        value = value.astimezone()
+    return value.isoformat()
+
+
+def _local_minutes(value: Optional[datetime]) -> Optional[datetime]:
+    """Backend times → naive local time (the UI and session monitor work in local time)."""
+    if value is None:
+        return None
+    return value.astimezone().replace(tzinfo=None, second=0, microsecond=0)
+
+
+def _ip_or_none(value: Optional[str]) -> Optional[str]:
+    try:
+        return str(ipaddress.ip_address((value or "").strip()))
+    except ValueError:
+        return None
+
+
+_EXTENSION_REASONS = {
+    "already_ended": "The booking has already ended.",
+    "not_later": "The new end time must be later than the current end.",
+    "too_short": "Extend by at least 10 minutes.",
+    "needs_approval": "Bookings longer than 4 hours need approval in the web app.",
+    "bench_not_in_service": "The bench is not in service.",
+    "bench_not_free": "Another booking starts on this bench before that time.",
+}
+
+
+def _extension_reason(error: "agent_errors.BookingExtensionRejected") -> str:
+    message = _EXTENSION_REASONS.get(error.reason, str(error.args[0]))
+    limit = _local_minutes(error.limit_at)
+    return f"{message}\nLimit: {limit:%Y-%m-%d %H:%M}" if limit else message

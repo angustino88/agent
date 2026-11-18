@@ -1,11 +1,11 @@
 import threading
 from datetime import datetime
-from src.utils.datetime import iso_datetime
 from src.mvc.slot_guard import slot_guard
 from src.mvc.task_schedule import task, Schedule
 from src.mvc.base_controller import BaseController
 from src.app.model.config.task_schedule_config import TaskScheduleConfig
 from src.app.controller.lab_status.lab_status_monitor import LabStatusMonitor
+from src.core.agent_api import ActivityReport
 
 class LabStatusCtrl(BaseController):
     #====================================================================
@@ -35,7 +35,6 @@ class LabStatusCtrl(BaseController):
         self._session_info_view = self.view.session_info_view
         self._main_window_view = self.view.main_window_view
         self._lab_api_model = self.model.lab_api_model
-        self._api_service = self.model.lab_api_model.service
         self._lab_computer = self.model.computer_model.computer_name
 
         # EventBus wiring
@@ -65,30 +64,18 @@ class LabStatusCtrl(BaseController):
                 )
 
     def _send_lab_status(self, status, inactive_since_dt):
-        def send():
-            body = {
-                "status": status.value,
-                "inactive_time": iso_datetime(inactive_since_dt) if inactive_since_dt else None,
-                "booking_code": "",
-                "remote_user": "",
-                "remote_user_displayname": "",
-                "remote_ip": "",
-                "remote_computer": ""
-            }
-            if self._session_info is not None:
-                body.update({
-                    "booking_code": getattr(self._session_info, "booking_code", ""),
-                    "remote_user": getattr(self._session_info, "remote_user", ""),
-                    "remote_user_displayname": getattr(self._session_info, "remote_user_displayname", ""),
-                    "remote_ip": getattr(self._session_info, "remote_ip", ""),
-                    "remote_computer": getattr(self._session_info, "remote_computer", "")
-                })
-            try:
-                self._api_service.send_lab_status(**body, timeout=2)
-            except Exception as e:
-                self._logger.warning(f'Error sending lab status: {e}')
-
-        threading.Thread(target=send, daemon=True).start()
+        """PATCH /agent/equipment/activity. The backend derives inactive/offline timestamps itself
+        from status changes, so ``inactive_since_dt`` is only kept for the local log."""
+        info = self._session_info
+        report = ActivityReport(
+            status=status.value,
+            booking_code=getattr(info, "booking_code", "") or "" if info else "",
+            remote_user=(getattr(info, "remote_user", "") or "").lower() if info else "",
+            remote_user_display_name=getattr(info, "remote_user_displayname", "") or "" if info else "",
+            remote_computer=getattr(info, "remote_computer", "") or "" if info else "",
+            remote_ip=getattr(info, "remote_ip", "") or "" if info else "",
+        )
+        threading.Thread(target=self._lab_api_model.report_activity, args=(report,), daemon=True).start()
 
     def _handle_lab_status(self, lab_status):
         status, inactive_time_mins, inactive_since_dt = lab_status
@@ -107,15 +94,15 @@ class LabStatusCtrl(BaseController):
         except Exception as e:
             self._logger.warning(f'Error sending lab status: {e}')
 
-    def _persist_session_end(self, start_time, end_time, info, total_seconds, active_minutes):
-        """Write local + remote session logs."""
+    def _persist_session_end(self, start_time, end_time, info, total_seconds, active_seconds):
+        """Write the local log, then queue the remote log (POST /agent/session-logs) for delivery."""
         try:
             self._session_logger.insert_session_log(
                 self._lab_computer,
                 start_time,
                 end_time,
                 int(total_seconds // 60),
-                active_minutes,
+                active_seconds // 60,
                 getattr(info, "booking_code", ""),
                 getattr(info, "remote_user", ""),
                 getattr(info, "remote_user_displayname", ""),
@@ -125,19 +112,28 @@ class LabStatusCtrl(BaseController):
         except Exception as e:
             self._logger.warning(f"Error logging session info: {e}")
 
+        if start_time is None:
+            return
         try:
-            self._api_service.send_session_log(
-                login_time=iso_datetime(start_time),
-                logout_time=iso_datetime(end_time),
-                active_time=active_minutes,
-                remote_user=getattr(info, "remote_user", ""),
-                remote_user_displayname=getattr(info, "remote_user_displayname", ""),
-                remote_computer=getattr(info, "remote_computer", ""),
-                remote_ip=getattr(info, "remote_ip", ""),
-                booking_code=getattr(info, "booking_code", "")
+            self._lab_api_model.queue_session_log(
+                login_at=start_time,
+                logout_at=end_time,
+                active_seconds=active_seconds,
+                remote_user=getattr(info, "remote_user", "") or "",
+                remote_ip=getattr(info, "remote_ip", "") or "",
+                remote_host=getattr(info, "remote_computer", "") or "",
+                booking_code=getattr(info, "booking_code", "") or None,
             )
         except Exception as e:
-            self._logger.warning(f"Error sending session info: {e}")
+            self._logger.warning(f"Error queuing session log: {e}")
+            return
+        threading.Thread(target=self._flush_session_logs, daemon=True).start()
+
+    def _flush_session_logs(self):
+        try:
+            self._lab_api_model.flush_session_logs()
+        except Exception as e:
+            self._logger.warning(f"Error sending session logs (will retry): {e}")
 
     #====================================================================
     # Public methods
@@ -160,9 +156,8 @@ class LabStatusCtrl(BaseController):
         total_seconds = (end - start).total_seconds() if start else 0
         inactive_seconds = int(self._total_inactive_time * 60)
         active_seconds = max(0, int(total_seconds - inactive_seconds))
-        active_minutes = active_seconds // 60
 
-        self._persist_session_end(start, end, info, total_seconds, active_minutes)
+        self._persist_session_end(start, end, info, total_seconds, active_seconds)
 
         self._logger.info(
             f"[SessionEnd] booking={getattr(info,'booking_code','')} user={getattr(info,'remote_user','')} "

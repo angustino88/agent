@@ -11,4 +11,6 @@ class TaskScheduleConfig:
     LOGIN_STATE_MONITOR   = Schedule(type="interval", every=1,  unit='seconds')
     REFRESH_SERVICE_GATEWAY_TOKEN  = Schedule(type="interval", every=30, unit='minutes')
     SYNC_SERVICE_GATEWAY           = Schedule(type="interval", every=10, unit='minutes', run_at_start=True)
+    # Agent liveness (backend AGENT_HEALTH_ONLINE_S is 180 s); also retries queued session logs
+    AGENT_HEARTBEAT                = Schedule(type="interval", every=60, unit='seconds', run_at_start=True)
     PHYSICAL_DEVICE_MONITOR = 5 # seconds

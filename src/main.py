@@ -1,7 +1,6 @@
 import os
 import sys
 from pathlib import Path
-from PySide6.QtWidgets import QApplication
 
 def get_app_root() -> Path:
     """
@@ -21,6 +20,13 @@ def get_app_root() -> Path:
 APP_ROOT = get_app_root()
 sys.path.insert(0, str(APP_ROOT))
 os.environ["LABMANGO_ROOT"] = str(APP_ROOT)
+
+# Command line sub-commands (`LabMango enroll|status|unenroll ...`) run without starting Qt.
+if __name__ == '__main__' and len(sys.argv) > 1 and sys.argv[1] in ("enroll", "status", "unenroll"):
+    from src.agent_cli import main as agent_cli_main
+    sys.exit(agent_cli_main(sys.argv[1:]))
+
+from PySide6.QtWidgets import QApplication
 
 from src.mvc.router import Router
 from src.app.view.main_view import MainView

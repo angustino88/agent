@@ -3,7 +3,6 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class SessionInfo:
-	booking_id      : int
 	booking_code	: str
 	lab_computer    : str
 	is_maintenance  : bool

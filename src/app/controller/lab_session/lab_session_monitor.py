@@ -84,15 +84,15 @@ class LabSessionMonitor(QObject):
 
         if self._recheck_counter >= self.RECHECK_BOOKING_INTERVAL:  # assuming run() is called once per second
             self._recheck_counter = 0
-            booking_info = self._lab_api_model.get_booking_info(self._booking_code)
-            if booking_info:
-                self._update_expired_datetime(booking_info)
+            # None = the booking was completed, cancelled or has ended on the backend
+            booking_info = self._lab_api_model.check_booking_running(self._booking_code)
+            self._update_expired_datetime(booking_info)
         else:
             self._recheck_counter += 1
 
     def _update_expired_datetime(self, booking_info):
         """Update expiration time based on booking status."""
-        if booking_info.booking_status == BookingStatus.IN_PROGRESS:
+        if booking_info is not None and booking_info.booking_status == BookingStatus.IN_PROGRESS:
             if booking_info.to_datetime != self._expired_datetime:
                 self._expired_datetime = booking_info.to_datetime
                 self.new_expired_datetime.emit(self._expired_datetime)

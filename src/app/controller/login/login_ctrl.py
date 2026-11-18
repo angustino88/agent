@@ -13,12 +13,11 @@ from src.app.model.types.login_mode import LoginMode
 from src.app.model.types.login_info import LoginInfo
 from src.app.model.types.login_event import LoginEvent
 from src.app.model.types.booking_info import BookingInfo
-from src.app.model.types.approval_status import ApprovalStatus
-from src.app.model.types.booking_status import BookingStatus
 from src.app.model.types.user_attributes import UserAttributes
 from src.app.model.config.task_schedule_config import TaskScheduleConfig
 from src.app.controller.login.login_event_monitor import LoginEventMonitor
 from src.core.otp.otp_manager import OTPManager
+from src.core.agent_api.errors import BackendUnreachable as AgentConnectionError
 from src.utils.remote_desktop import RemoteDesktop
 
 
@@ -118,31 +117,32 @@ class LoginCtrl(BaseController):
         self._login_state.user_attr = UserAttributes.from_aduser(ad_user)
 
     def _load_booking_info(self, booking_code: str):
+        """Read-only check that the code can be used on this computer now.
+
+        The backend decides eligibility (approved, this computer's bench, inside the window) and
+        answers every refusal the same way, so no reason is available here.
+        """
         if not booking_code:
             raise ValueError("Booking code is empty")
         try:
             booking_info = self._lab_api_model.get_booking_info(booking_code)
-        except ConnectTimeout:
-            raise ConnectionError("Connection timed out")
-        self._validate_booking(booking_info)
+        except LookupError:
+            raise PermissionError(
+                "This booking code cannot be used on this computer now.\n"
+                "Check the code, that the booking is approved, and its start time."
+            )
+        except (ConnectTimeout, AgentConnectionError):
+            raise ConnectionError("Lab Mango backend is unreachable")
+        if not booking_info.booking_creator:
+            raise PermissionError("Booking has no user assigned")
         self._login_state.booking_info = booking_info
 
-    def _validate_booking(self, booking_info):
-        if booking_info.booking_status not in (BookingStatus.AVAILABLE, BookingStatus.IN_PROGRESS):
-            raise PermissionError(f"Booking status not accepted: {booking_info.booking_status}")
-        if booking_info.approval_status != ApprovalStatus.APPROVED:
-            raise PermissionError(f"Booking not approved: {booking_info.approval_status}")
-        if self._lab_computer != booking_info.booking_computer:
-            raise PermissionError(
-                f"Booking computer mismatch: expected {self._lab_computer}, got {booking_info.booking_computer}"
-            )
-        now = datetime.now()
-        if not (booking_info.from_datetime <= now <= booking_info.to_datetime):
-            raise PermissionError(
-                "Booking datetime invalid:\n"
-                f"Current: {now:%Y-%m-%d %H:%M:%S}\n"
-                f"Window: {booking_info.from_datetime} - {booking_info.to_datetime}"
-            )
+    def _check_in_booking(self, booking_code: str):
+        """Start the booking on the backend (in progress); safe to repeat on re-login."""
+        try:
+            self._login_state.booking_info = self._lab_api_model.check_in_booking(booking_code)
+        except AgentConnectionError:
+            raise ConnectionError("Lab Mango backend is unreachable")
 
     def _build_login_info(self, username, displayname, booking_code, mode: LoginMode) -> LoginInfo:
         return LoginInfo(
@@ -173,12 +173,11 @@ class LoginCtrl(BaseController):
         # Booking details
         if booking_info:
             self._logger.info(
-                "[BookingAttached] code=%s creator=%s project=%s computer=%s status=%s "
+                "[BookingAttached] code=%s user=%s computer=%s status=%s "
                 "window=%s->%s duration_min=%s",
                 booking_info.booking_code,
                 booking_info.booking_creator,
-                getattr(booking_info, "booking_project", ""),
-                booking_info.booking_computer,
+                self._lab_computer,
                 booking_info.booking_status,
                 booking_info.from_datetime,
                 booking_info.to_datetime,
@@ -260,6 +259,7 @@ class LoginCtrl(BaseController):
             self._load_booking_info(booking_code)
             username = self._login_state.booking_info.booking_creator
             self._load_user_attributes(username)
+            self._check_in_booking(booking_code)
             mode = self._resolve_mode(username, is_booking=True)
             info = self._build_login_info(
                 username,

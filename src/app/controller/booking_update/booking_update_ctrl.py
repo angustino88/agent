@@ -21,7 +21,7 @@ class BookingUpdateCtrl(BaseController):
         if self._initialized:
             return self
         self._logger = self.model.logging_model.system_logger
-        self._api_service = self.model.lab_api_model.service
+        self._lab_api_model = self.model.lab_api_model
         self._message_box = self.view.message_box
         self._booking_update_view = self.view.booking_update_view
         self._booking_update_view.ui.update_btn.clicked.connect(self.update_booking)
@@ -39,34 +39,17 @@ class BookingUpdateCtrl(BaseController):
 
     def _ensure_session(self):
         session = self.bus_request("get:session_info")
-        if not session or not getattr(session, "booking_id", None):
+        if not session or not getattr(session, "booking_code", None):
             raise RuntimeError("No active booking/session.")
         return session
 
-    def _update_booking_in_progress(self, booking_id: int, to_datetime):
-        resp = self._api_service.update_booking(
-            booking_id=booking_id,
-            to_datetime=to_datetime,
-        )
-        if not getattr(resp, "success", False):
-            raise RuntimeError(f"Failed updating booking end time (id={booking_id}) status={resp.status_code} err={resp.text[:200]}")
-
-    def _update_booking_done(self, booking_id: int):
-        resp = self._api_service.update_booking(
-            booking_id=booking_id,
-            status=BookingStatus.DONE.value
-        )
-        if not getattr(resp, "success", False):
-            raise RuntimeError(f"Failed marking booking done (id={booking_id}) status={resp.status_code} err={resp.text[:200]}")
-
-    def _apply_update(self, selected_status: str, to_datetime) -> str:
-        session = self._ensure_session()
-        bid = session.booking_id
+    def _apply_update(self, selected_status: str, to_datetime) -> None:
+        code = self._ensure_session().booking_code
         if selected_status == BookingStatus.IN_PROGRESS.value:
-            self._update_booking_in_progress(bid, to_datetime)
+            self._lab_api_model.extend_booking(code, to_datetime)
             return
         if selected_status == BookingStatus.DONE.value:
-            self._update_booking_done(bid)
+            self._lab_api_model.complete_booking(code)
             return
         raise ValueError("Invalid booking status selected.")
 

@@ -119,6 +119,10 @@ class AppConfig(BaseModel):
     DEVICE_MONITOR_INFO_FILE:  ConfigFile = PathUtil.join(SHARED_INFO_DIR, 'monitored_devices.json')
     COMPUTER_INFO_FILE:        ConfigFile = PathUtil.join(INFO_DIR, 'computer.json')
 
+    # Agent identity (machine-wide; shared with the `enroll` / `status` command line)
+    AGENT_DIR:                 RuntimeDir = PathUtil.join(SHARED_APP_DIR, 'agent')
+    SESSION_LOG_OUTBOX_FILE:   ConfigFile = PathUtil.join(SHARED_APP_DIR, 'agent', 'session_log_outbox.json')
+
     USER_MANUAL_URL:        str = "https://labmango.readthedocs.io/en/latest/"
 
     SERVICE_GATEWAY_URL:    ServiceUrl = "http://localhost:8000"

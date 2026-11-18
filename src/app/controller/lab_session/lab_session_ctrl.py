@@ -6,7 +6,6 @@ from src.mvc.slot_guard import slot_guard
 from src.mvc.task_schedule import task, Schedule
 from src.mvc.base_controller import BaseController
 from src.app.model.types.session_info import SessionInfo
-from src.app.model.types.booking_status import BookingStatus
 from src.app.model.types.login_event import LoginEvent
 from src.app.model.config.task_schedule_config import TaskScheduleConfig
 from src.app.controller.lab_session.lab_session_monitor import LabSessionMonitor
@@ -128,7 +127,6 @@ class LabSessionCtrl(BaseController):
         client_host = RemoteDesktop.get_client_hostname()
 
         self._session_info = SessionInfo(
-            booking_id=getattr(booking_info, "booking_id", None) if booking_info else None,
             booking_code=getattr(booking_info, "booking_code", None) if booking_info else None,
             lab_computer=self._lab_computer,
             is_maintenance=(
@@ -208,8 +206,8 @@ class LabSessionCtrl(BaseController):
             self._message_box.info("No active session", parent=self._session_info_view)
             return
 
-        booking_id = getattr(self._session_info, "booking_id", None)
-        if not booking_id:
+        booking_code = getattr(self._session_info, "booking_code", None)
+        if not booking_code:
             self._message_box.info("No active booking to end.", parent=self._session_info_view)
             return
 
@@ -228,14 +226,7 @@ class LabSessionCtrl(BaseController):
         if msg.clickedButton() != confirm_btn:
             return
 
-        resp = self._lab_api_model.service.update_booking(
-            booking_id=booking_id,
-            status=BookingStatus.DONE.value,
-        )
-        if not getattr(resp, "success", False):
-            raise RuntimeError(
-                f"Failed marking booking done (id={booking_id}) status={resp.status_code} err={resp.text[:200]}"
-            )
+        self._lab_api_model.complete_booking(booking_code)
 
         self.trigger_recheck_booking()
         self._message_box.info("Booking has been ended successfully.", parent=self._session_info_view)
