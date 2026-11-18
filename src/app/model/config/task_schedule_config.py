@@ -9,6 +9,7 @@ class TaskScheduleConfig:
     LOGIN_EVENT_MONITOR    = Schedule(type="interval", every=1,  unit="seconds")
     MONITORING_POLICY_SYNC = Schedule(type="interval", every=10, unit="minutes", run_at_start=True)
     USB_DEVICE_COLLECTOR   = 5  # seconds between USB scans (collector thread)
+    LICENSE_COLLECTOR      = Schedule(type="interval", every=6,  unit="hours",   run_at_start=True)
 
     # Service gateway
     GATEWAY_TOKEN_REFRESH  = Schedule(type="interval", every=30, unit="minutes")

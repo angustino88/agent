@@ -1,12 +1,14 @@
 import traceback
+from datetime import datetime
 from src.mvc.slot_guard import slot_guard
 from src.mvc.base_controller import BaseController
 from src.app.controller.device_scan.device_scan_thread import DeviceScanThread
 
+
 class DeviceScanCtrl(BaseController):
-    #====================================================================
+    # ====================================================================
     # Initial methods
-    #====================================================================
+    # ====================================================================
     def __init__(self):
         """
         Initializes class instance
@@ -24,21 +26,21 @@ class DeviceScanCtrl(BaseController):
         self._device_scan_view.ui.scan_btn.toggled.connect(self.scan)
         self.view.main_window_view.ui.device_monitor_btn.clicked.connect(self.show_dialog)
 
-    #====================================================================
+    # ====================================================================
     # Private methods
-    #====================================================================
+    # ====================================================================
     def _handle_exception(self, e):
         """Shows error message to user."""
-        tb_str = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
+        tb_str = "".join(traceback.format_exception(type(e), e, e.__traceback__))
         self._logger.exception(tb_str)
         self._message_box.exception(e)
 
     def _handle_scan_error(self, e):
         """Shows error message to user."""
-        tb_str = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
+        tb_str = "".join(traceback.format_exception(type(e), e, e.__traceback__))
         self._logger.exception(tb_str)
         self._device_scan_view.console(f"Error: {str(e)}")
-    
+
     def _handle_device_insert(self, dev_name, dev_id):
         self._device_scan_view.console("🆕 Device Inserted:")
         self._device_scan_view.console(dev_id)
@@ -71,7 +73,7 @@ class DeviceScanCtrl(BaseController):
         self._scan_thread.exception.connect(self._handle_exception)
         self._scan_thread.start()
         self._device_scan_view.console("🟢 Device scan started.")
-    
+
     def _stop_scan(self):
         if hasattr(self, "_scan_thread") and self._scan_thread:
             if self._scan_thread.isRunning():
@@ -83,19 +85,32 @@ class DeviceScanCtrl(BaseController):
             self._scan_thread = None
         self._device_scan_view.set_scan_inactive()
 
-    #====================================================================
+    # ====================================================================
     # Public methods
-    #====================================================================
+    # ====================================================================
 
-    #====================================================================
+    # ====================================================================
     # pyqtSlot method - which connected to UI signal
-    #====================================================================\
+    # ====================================================================\
+    def _print_licenses(self):
+        """Licenses found on this computer and connected hardware (read every 6 hours)."""
+        licenses = self.bus_request("get:licenses") or []
+        view = self._device_scan_view
+        view.console(f"Licenses ({len(licenses)}):" if licenses else "Licenses: none found")
+        now = datetime.now()
+        for lic in licenses:
+            days = lic.days_left(now)
+            left = "" if days is None else f", {days} days left"
+            view.console(f"  {lic.describe()}{left}")
+        view.console("-" * 40)
+
     @slot_guard(on_exception=_handle_exception)
     def show_dialog(self):
         self._load_device_table()
         self._device_scan_view.clear_console_log()
+        self._print_licenses()
         self._device_scan_view.exec()
-    
+
     @slot_guard(on_exception=_handle_exception)
     def refresh(self):
         self._load_device_table()

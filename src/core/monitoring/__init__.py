@@ -3,20 +3,29 @@
 from .devices import (
     USB_COLLECTOR_KEY,
     USB_INTERFACE_NAME,
+    HardwareId,
+    HardwareIdKind,
     ObservedDevice,
     UsbInstance,
     parse_usb_instance_id,
     pick_interface_name,
     usb_device,
 )
+from .licenses import CarrierType, LicenseObservation, LicenseState, expiring
 from .reporter import DeviceObservationReporter
 
 __all__ = [
     "USB_COLLECTOR_KEY",
     "USB_INTERFACE_NAME",
+    "CarrierType",
     "DeviceObservationReporter",
+    "HardwareId",
+    "HardwareIdKind",
+    "LicenseObservation",
+    "LicenseState",
     "ObservedDevice",
     "UsbInstance",
+    "expiring",
     "parse_usb_instance_id",
     "pick_interface_name",
     "usb_device",

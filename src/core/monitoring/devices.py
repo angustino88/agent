@@ -17,6 +17,23 @@ _FIELD_MAX = 255
 _USB_INSTANCE = re.compile(r"^USB\\VID_([0-9A-F]{4})&PID_([0-9A-F]{4})(&[^\\]*)?\\(.+)$", re.IGNORECASE)
 
 
+class HardwareIdKind:
+    USB_SERIAL = "usb_serial"  # VID:PID:serial descriptor; unique per device
+    USB_PORT = "usb_port"  # Windows-generated instance id; only valid on one port of one computer
+    VECTOR_DEVICE = "vector_device"  # Vector device name, e.g. "007113-585343" (License Client DeviceName)
+
+
+@dataclass(frozen=True)
+class HardwareId:
+    """A value read from the hardware itself. Inventory links it to a unit; it is never typed."""
+
+    kind: str
+    value: str
+
+    def to_body(self) -> dict:
+        return {"kind": self.kind, "value": self.value[:_FIELD_MAX]}
+
+
 @dataclass(frozen=True)
 class ObservedDevice:
     observation_key: str

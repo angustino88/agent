@@ -38,6 +38,14 @@ APP_SETTINGS_SCHEMA = {
         },
         "required": False,
     },
+    "licenses": {
+        "type": "dict",
+        "schema": {
+            "warn_days": {"type": "integer", "min": 1, "required": False},
+            "vector_license_client": {"type": "string", "required": False},
+        },
+        "required": False,
+    },
 }
 
 APP_SETTINGS_DEFAULT = {
@@ -64,6 +72,11 @@ APP_SETTINGS_DEFAULT = {
     # Users who log in as administrators (maintenance) without a booking.
     "login": {
         "admin_usernames": ["adminlab"],
+    },
+    # Tool licenses on this computer and connected hardware (read-only).
+    "licenses": {
+        "warn_days": 30,
+        "vector_license_client": "C:\\Program Files\\Vector License Client\\Vector.LicenseClient.exe",
     },
 }
 
@@ -141,3 +154,13 @@ class AppSettings(BaseModel):
     @property
     def admin_usernames(self) -> set[str]:
         return {str(name).lower() for name in (self._get("login.admin_usernames") or [])}
+
+    # ---- Licenses -----------------------------------------------------------
+
+    @property
+    def license_warn_days(self) -> int:
+        return int(self._get("licenses.warn_days") or 30)
+
+    @property
+    def vector_license_client(self) -> str:
+        return self._get("licenses.vector_license_client") or ""

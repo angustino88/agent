@@ -4,6 +4,7 @@ import pythoncom
 from PySide6.QtCore import Signal
 from src.mvc.base_thread import BaseThread, EHandle
 
+
 class DeviceScanThread(BaseThread):
     device_inserted = Signal(str, str)  # name, device_id
     device_removed = Signal(str, str)
@@ -83,12 +84,8 @@ class DeviceScanThread(BaseThread):
     def _initialize_wmi(self):
         try:
             self._wmi = wmi.WMI()
-            self._insert_watcher = self._wmi.watch_for(
-                notification_type="Creation", wmi_class="Win32_PnPEntity"
-            )
-            self._remove_watcher = self._wmi.watch_for(
-                notification_type="Deletion", wmi_class="Win32_PnPEntity"
-            )
+            self._insert_watcher = self._wmi.watch_for(notification_type="Creation", wmi_class="Win32_PnPEntity")
+            self._remove_watcher = self._wmi.watch_for(notification_type="Deletion", wmi_class="Win32_PnPEntity")
         except Exception as e:
             self._wmi = None
             self.exception.emit(e)
