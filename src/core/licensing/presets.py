@@ -35,7 +35,7 @@ VECTOR_LICENSE_CLIENT = {
             "expires_at": "ExpirationDateString",
             "final_expires_at": "FinalExpirationDateString",
             "carrier_id": "DeviceName",
-            "vendor_license_id": "VectorLicenseId",
+            "license_serial": "VectorLicenseId",
             "is_reactivatable": "IsReactivatable",
             "carrier_type": "BindingType",
         },

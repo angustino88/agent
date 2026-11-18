@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import xml.etree.ElementTree as ET
@@ -158,9 +159,14 @@ def to_observations(rows: list[dict[str, str]], check: LicenseCheck) -> list[Lic
         else:
             carrier_id = ""
         equipment_uid = carrier.equipment_uid if carrier_type == CarrierType.EQUIPMENT else ""
-        product = row.get("product_code") or row["product_name"]
-        carrier_key = carrier_id or equipment_uid or carrier_type
-        key = f"{check.key}:{carrier_type}:{carrier_key}:{product}"[:255]
+        serial = row.get("license_serial", "")
+        if serial:
+            # Follows the license wherever it moves; a digest, since the serial itself is secret.
+            key = f"{check.key}:serial:{hashlib.sha256(serial.encode('utf-8')).hexdigest()[:24]}"
+        else:
+            product = row.get("product_code") or row["product_name"]
+            carrier_key = carrier_id or equipment_uid or carrier_type
+            key = f"{check.key}:{carrier_type}:{carrier_key}:{product}"[:255]
         found[key] = LicenseObservation(
             check_key=check.key,
             observation_key=key,
@@ -173,7 +179,7 @@ def to_observations(rows: list[dict[str, str]], check: LicenseCheck) -> list[Lic
             final_expires_at=parse_date(row.get("final_expires_at", ""), spec.date_formats, spec.never_values),
             max_version=row.get("max_version", ""),
             is_reactivatable=row.get("is_reactivatable", "").lower() in ("true", "yes", "1"),
-            vendor_license_id=row.get("vendor_license_id", ""),
+            license_serial=row.get("license_serial", ""),
             carrier_equipment_uid=equipment_uid,
         )
     return list(found.values())

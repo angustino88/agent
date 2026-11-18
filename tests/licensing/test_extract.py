@@ -23,15 +23,16 @@ def test_vector_license_client_output_through_the_generic_engine():
     assert lic.carrier_hardware_id == HardwareId("vector_device", "007113-585343")
     assert lic.expires_at == datetime(2027, 4, 9, 23, 59, 59)
     assert lic.final_expires_at is None and lic.is_reactivatable
-    assert lic.vendor_license_id == "55100045010" and "55100045010" not in lic.describe()
-    assert lic.observation_key == "vector-license-client:device:007113-585343:55100"
+    assert lic.license_serial == "55100045010" and "55100045010" not in lic.describe()
+    assert lic.observation_key.startswith("vector-license-client:serial:")
+    assert "55100045010" not in lic.observation_key  # keyed by a digest of the serial, never the serial
 
 
 def test_pc_bound_vector_license_has_the_computer_as_carrier():
     xml = (
         b'<?xml version="1.0" encoding="Codepage - 437"?><Containers><LicenseContainer><Licenses>'
         b"<VectorLicense><ProductText>CANoe</ProductText><MaterialNumber>1</MaterialNumber>"
-        b"<BindingType>PC</BindingType><DeviceName>MY-PC</DeviceName>"
+        b"<BindingType>PC</BindingType><DeviceName>MY-PC</DeviceName>"  # no VectorLicenseId
         b"<ExpirationDateString>2026-12-31T23:59:59</ExpirationDateString></VectorLicense>"
         b"</Licenses></LicenseContainer></Containers>"
     )

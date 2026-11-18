@@ -33,8 +33,8 @@ def license_body(lic: LicenseObservation) -> dict:
         "max_version": lic.max_version[:64],
         "is_reactivatable": lic.is_reactivatable,
     }
-    if lic.vendor_license_id:
-        body["vendor_license_id"] = lic.vendor_license_id[:128]
+    if lic.license_serial:
+        body["license_serial"] = lic.license_serial[:128]
     return body
 
 

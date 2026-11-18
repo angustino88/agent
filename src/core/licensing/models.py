@@ -51,7 +51,8 @@ class LicenseObservation:
     final_expires_at: Optional[datetime]  # None = perpetual
     max_version: str = ""
     is_reactivatable: bool = False
-    vendor_license_id: str = ""  # vendor's license ID; matches License.identifier. Never log it.
+    license_serial: str = ""  # the license's serial / ID from the tool; the backend's match key
+    # (License.identifier). Secret: never logged, shown or put in observation keys.
     carrier_equipment_uid: str = ""  # for CarrierType.EQUIPMENT: the unit configured on the check
 
     def state(self, now: datetime) -> str:

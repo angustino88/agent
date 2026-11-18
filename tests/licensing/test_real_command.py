@@ -37,4 +37,4 @@ def test_stand_in_license_client_end_to_end(tmp_path):
         "type": "device",
         "hardware_id": {"kind": "vector_device", "value": "007113-585343"},
     }
-    assert body["licenses"][0]["vendor_license_id"] == "55100045010"
+    assert body["licenses"][0]["license_serial"] == "55100045010"

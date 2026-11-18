@@ -88,6 +88,13 @@ section 5). The agent implements a closed catalog of read-only probes; a check i
 | Extraction | `xml` (ElementTree path), `json` (dotted path with `[*]`), `text` (regex with named groups), `values` (registry); field sources for product, product code, version, expiry, final expiry, carrier ID, vendor license ID, reactivatable, carrier type; date formats; "never" values |
 | Carrier | `computer`, `device` / `dongle` (hardware ID kind + `carrier_id`), `server`, `equipment` (unit chosen in the web app), or `mapped` per license from a tool field |
 
+**Push by license serial.** The agent does not decide which Lab Mango license a result belongs to:
+it pushes every license it finds with its `license_serial` (the tool's own license ID) and carrier;
+the backend finds the `License` whose `identifier` is that serial, compares expiry, version and
+carrier, and updates it (backend proposal, section 5.4). The observation key is a digest of the
+serial, so a license keeps its identity when its dongle or device moves to another computer.
+Licenses without a serial fall back to product-code matching on the backend.
+
 Where the checks come from: `GET /agent/license-checks` when the backend advertises
 `license_checks`; until then the presets enabled in `licenses.builtin_checks` (local settings).
 Each check runs on its own interval (≥ 15 minutes); the scheduler wakes every 15 minutes. A changed
@@ -113,7 +120,7 @@ failure; only an `ok` run replaces the license set.
 | `ExpirationDateString` | `expires_at`: when the activation ends (reactivatable licenses) |
 | `FinalExpirationDateString` | `final_expires_at`; `9999-12-31` = perpetual |
 | `BindingType` + `DeviceName` | carrier: DEVICE → device, DONGLE → dongle, PC → computer; hardware ID `vector_device` = `DeviceName` |
-| `VectorLicenseId` | vendor license ID (matches `License.identifier`; never logged or shown) |
+| `VectorLicenseId` | `license_serial`: the backend's match key for `License.identifier`; never logged or shown |
 | `IsReactivatable` | warning text: "Reactivate it in the vendor's license tool." |
 
 The output declares `encoding="Codepage - 437"` (not a valid XML encoding); `encoding: auto` maps it
