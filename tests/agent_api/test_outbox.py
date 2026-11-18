@@ -1,11 +1,14 @@
 from src.core.agent_api import SessionLogOutbox
 
-from .conftest import FakeSession
-
 
 def entry(key):
-    return {"event_key": key, "login_at": "2026-11-18T06:00:00+00:00", "logout_at": "2026-11-18T07:00:00+00:00",
-            "active_duration_seconds": 60.0, "remote_user": "ann"}
+    return {
+        "event_key": key,
+        "login_at": "2026-11-18T06:00:00+00:00",
+        "logout_at": "2026-11-18T07:00:00+00:00",
+        "active_duration_seconds": 60.0,
+        "remote_user": "ann",
+    }
 
 
 def test_acknowledged_logs_are_removed_and_transient_failures_kept(tmp_path, client, session):

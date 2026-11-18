@@ -34,11 +34,9 @@ class LoginState:
 class LoginCtrl(BaseController):
     BOOKING_PREFIX = "BOOKING-"
     _ADMIN_CACHE_TTL = 300  # seconds
-    COMPANY_NAME = "Company"  # Used in build config and version info
 
     def __init__(self):
         super().__init__()
-        pyad.set_defaults(domain="DC=,DC=com")
         self._login_state = LoginState()
         self._login_event: LoginEvent = LoginEvent.SCREEN_LOGOUT
         self._last_login_event: LoginEvent = LoginEvent.SCREEN_LOGOUT
@@ -49,6 +47,8 @@ class LoginCtrl(BaseController):
         self._login_event_monitor.event.connect(self._on_login_event)
 
     def init(self):
+        self._app_settings = self.model.config_model.app_settings
+        pyad.set_defaults(domain=self._app_settings.ad_default_domain)
         self._logger = self.model.logging_model.system_logger
         self._message_box = self.view.message_box
         self._login_view = self.view.login_view
@@ -80,19 +80,14 @@ class LoginCtrl(BaseController):
             self._admins_loaded_at = time.time()
         except Exception as e:
             if not self._admins:
-                self._admins = {"adminlab"}  # fallback
+                self._admins = self._app_settings.ad_fallback_admins
             self._logger.warning(f"Admin load failed: {e}")
 
     def _load_user_attributes(self, username: str):
         if not username:
             raise ValueError("Username is empty")
         self._load_admins()
-        search_bases = [
-            None,
-            f"DC=apac,DC={self.COMPANY_NAME},DC=com",
-            f"DC=de,DC={self.COMPANY_NAME},DC=com",
-            f"DC=emea,DC={self.COMPANY_NAME},DC=com",
-        ]
+        search_bases = [None, *self._app_settings.ad_search_bases]
 
         last_exc: Exception | None = None
         ad_user = None

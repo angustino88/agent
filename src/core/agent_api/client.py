@@ -327,9 +327,12 @@ class AgentApiClient:
     def extend_booking(self, booking_code: str, ends_at: str) -> BookingResult:
         """``ends_at`` is an ISO 8601 timestamp with offset. Raises :class:`BookingExtensionRejected`."""
         try:
-            data = self.request(
-                "POST", PATH_BOOKING_EXTEND, json_body={"booking_code": booking_code, "ends_at": ends_at}
-            ).data or {}
+            data = (
+                self.request(
+                    "POST", PATH_BOOKING_EXTEND, json_body={"booking_code": booking_code, "ends_at": ends_at}
+                ).data
+                or {}
+            )
         except (errors.Conflict, errors.ValidationFailed) as error:
             detail = next((d for d in error.details if isinstance(d, dict) and d.get("code")), None)
             if detail is not None:

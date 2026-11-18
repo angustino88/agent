@@ -32,7 +32,14 @@ pytestmark = pytest.mark.skipif(not all(ENV.values()), reason="LABMANGO_E2E_* no
 def test_full_agent_lifecycle(tmp_path):
     store = IdentityStore(tmp_path, key_store=FileKeyStore(tmp_path / "keys"))
     verify = not ENV["URL"].startswith("http://")
-    enroll(store, backend_url=ENV["URL"], agent_uid=ENV["AGENT_UID"], grant=ENV["GRANT"], agent_version="e2e", verify=verify)
+    enroll(
+        store,
+        backend_url=ENV["URL"],
+        agent_uid=ENV["AGENT_UID"],
+        grant=ENV["GRANT"],
+        agent_version="e2e",
+        verify=verify,
+    )
     identity, key = load_credentials(store)
     client = AgentApiClient(identity.backend_url, identity=identity, key=key, verify=verify)
     code = ENV["BOOKING_CODE"]
@@ -51,8 +58,14 @@ def test_full_agent_lifecycle(tmp_path):
 
     now = datetime.now(timezone.utc)
     outbox = SessionLogOutbox(tmp_path / "outbox.json")
-    log = {"event_key": str(uuid.uuid4()), "login_at": (now - timedelta(minutes=5)).isoformat(),
-           "logout_at": now.isoformat(), "active_duration_seconds": 120.0, "remote_user": "e2e", "booking_code": code}
+    log = {
+        "event_key": str(uuid.uuid4()),
+        "login_at": (now - timedelta(minutes=5)).isoformat(),
+        "logout_at": now.isoformat(),
+        "active_duration_seconds": 120.0,
+        "remote_user": "e2e",
+        "booking_code": code,
+    }
     outbox.add(log)
     assert outbox.flush(client) == 1 and outbox.pending() == []
     assert client.record_session_log(log).created is False  # idempotent replay
@@ -62,8 +75,14 @@ def test_full_agent_lifecycle(tmp_path):
 
     policy = client.get_monitoring_policy()
     assert client.get_monitoring_policy(policy.etag) is None
-    report = {"generation_key": policy.generation_key, "collector_key": "e2e", "sequence": 1,
-              "collected_at": now.isoformat(), "is_complete": True, "devices": []}
+    report = {
+        "generation_key": policy.generation_key,
+        "collector_key": "e2e",
+        "sequence": 1,
+        "collected_at": now.isoformat(),
+        "is_complete": True,
+        "devices": [],
+    }
     batch = uuid.uuid4()
     assert client.report_device_observations(report, batch).replayed is False
     assert client.report_device_observations(report, batch).replayed is True

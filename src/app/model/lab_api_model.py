@@ -57,7 +57,10 @@ class LabApiModel(BaseModel):
             auth_scheme='Bearer',
             logger=self._logger if self._app_config_dynamic.app_debug_enabled else None,
             printer=print if self._app_config.IS_DEVELOPMENT else None,
-            token_refresh_callback=self.refresh_service_gateway_token)
+            token_refresh_callback=self.refresh_service_gateway_token,
+            verify=self._app_settings.tls_verify,
+            # Plain-HTTP fallback only while TLS checks are off (gateway without a certificate).
+            allow_http_fallback=not self._app_settings.tls_verify_enabled)
 
         self._service_gateway = LabApiServiceGateway(
             self._client_service_gateway,
@@ -72,7 +75,8 @@ class LabApiModel(BaseModel):
             base_url=self._app_settings.prod_backend_url,
             auth_value=self._credential_config.prod_api_key,
             logger=self._logger if self._app_config_dynamic.app_debug_enabled else None,
-            printer=print if self._app_config.IS_DEVELOPMENT else None
+            printer=print if self._app_config.IS_DEVELOPMENT else None,
+            verify=self._app_settings.tls_verify,
         )
         self._service_core = LabApiCoreService(
             self._client_core,
@@ -88,6 +92,7 @@ class LabApiModel(BaseModel):
         self._agent_client = AgentApiClient(
             "",
             timeout=5,
+            verify=self._app_settings.tls_verify,
             logger=self._logger if self._app_config_dynamic.app_debug_enabled else None,
         )
         self._session_log_outbox = SessionLogOutbox(
@@ -269,14 +274,14 @@ class LabApiModel(BaseModel):
             except agent_errors.AgentApiError:
                 return False
         try:
-            requests.get(self.backend_url, verify=False, timeout=3)
+            requests.get(self.backend_url, verify=self._app_settings.tls_verify, timeout=3)
             return True
         except requests.RequestException:
             return False
 
     def check_frontend_alive(self) -> bool:
         try:
-            requests.get(self.frontend_url, verify=False, timeout=3)
+            requests.get(self.frontend_url, verify=self._app_settings.tls_verify, timeout=3)
             return True
         except requests.RequestException:
             return False
@@ -313,7 +318,7 @@ class LabApiModel(BaseModel):
                 self._logger.error(f"[Agent] Key for agent {identity.agent_uid} is missing; re-enrollment needed.")
                 return False
             self._agent_client.base_url = identity.backend_url
-            self._agent_client.verify = identity.extra.get("tls_verify", True)
+            self._agent_client.verify = self._app_settings.tls_verify
             self._agent_client.set_credentials(identity, key)
             self._logger.info(f"[Agent] Identity {identity.agent_uid} on {identity.backend_key} loaded.")
             return True

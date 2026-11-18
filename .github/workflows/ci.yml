@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # Windows: the target platform, and the shared modules import pywin32 / wmi / pyad.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - name: Install workspace
+        run: uv sync --python 3.12 --all-packages --frozen
+      - name: Lint (agent API, CLI, tests)
+        run: |
+          uv run ruff check src/core/agent_api src/agent_cli.py tests
+          uv run ruff format --check src/core/agent_api src/agent_cli.py tests
+      - name: Tests
+        run: uv run pytest -q
+        env:
+          QT_QPA_PLATFORM: offscreen

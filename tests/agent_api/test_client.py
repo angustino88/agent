@@ -61,10 +61,18 @@ def test_activity_sends_only_set_fields_and_null_for_empty_ip(client, session):
 
 @pytest.mark.parametrize(
     "status, cls",
-    [(401, errors.Unauthenticated), (409, errors.Conflict), (422, errors.ValidationFailed), (429, errors.RateLimited), (503, errors.ServerError)],
+    [
+        (401, errors.Unauthenticated),
+        (409, errors.Conflict),
+        (422, errors.ValidationFailed),
+        (429, errors.RateLimited),
+        (503, errors.ServerError),
+    ],
 )
 def test_error_envelope_maps_to_typed_errors(client, session, status, cls):
-    session.queue(status, {"error": {"code": "x", "message": "nope", "details": [], "request_id": "r1"}}, {"Retry-After": "7"})
+    session.queue(
+        status, {"error": {"code": "x", "message": "nope", "details": [], "request_id": "r1"}}, {"Retry-After": "7"}
+    )
     with pytest.raises(cls) as caught:
         client.heartbeat()
     assert caught.value.code == "x" and caught.value.request_id == "r1"
@@ -91,24 +99,60 @@ def test_booking_refusal_has_no_details(client, session):
 
 
 def test_check_in_parses_window(client, session):
-    session.queue(200, {"data": {"is_checked_in": True, "booking_code": "B", "starts_at": "2026-11-18T07:00:00Z",
-                                 "ends_at": "2026-11-18T08:00:00+00:00", "booked_for": "ann"}})
+    session.queue(
+        200,
+        {
+            "data": {
+                "is_checked_in": True,
+                "booking_code": "B",
+                "starts_at": "2026-11-18T07:00:00Z",
+                "ends_at": "2026-11-18T08:00:00+00:00",
+                "booked_for": "ann",
+            }
+        },
+    )
     result = client.check_in_booking("B")
     assert result.ok and result.booked_for == "ann" and result.ends_at.hour == 8
 
 
 def test_extension_rejection_carries_reason_and_limit(client, session):
-    session.queue(409, {"error": {"code": "bench_not_free", "message": "Bench busy", "request_id": "r",
-                                  "details": [{"field": "ends_at", "code": "bench_not_free", "message": "busy",
-                                               "limit_at": "2026-11-18T09:00:00Z"}]}})
+    session.queue(
+        409,
+        {
+            "error": {
+                "code": "bench_not_free",
+                "message": "Bench busy",
+                "request_id": "r",
+                "details": [
+                    {
+                        "field": "ends_at",
+                        "code": "bench_not_free",
+                        "message": "busy",
+                        "limit_at": "2026-11-18T09:00:00Z",
+                    }
+                ],
+            }
+        },
+    )
     with pytest.raises(errors.BookingExtensionRejected) as caught:
         client.extend_booking("B", "2026-11-18T10:00:00+00:00")
     assert caught.value.reason == "bench_not_free" and caught.value.limit_at.hour == 9
 
 
 def test_monitoring_policy_etag_round_trip(client, session):
-    session.queue(200, {"data": {"generation_key": "g", "max_devices": 5, "max_body_bytes": 100,
-                                 "freshness_seconds": 60, "interface_names": ["usb"]}}, {"ETag": '"abc"'})
+    session.queue(
+        200,
+        {
+            "data": {
+                "generation_key": "g",
+                "max_devices": 5,
+                "max_body_bytes": 100,
+                "freshness_seconds": 60,
+                "interface_names": ["usb"],
+            }
+        },
+        {"ETag": '"abc"'},
+    )
     session.queue(304)
     policy = client.get_monitoring_policy()
     assert policy.etag == '"abc"' and policy.interface_names == ("usb",)
@@ -117,8 +161,18 @@ def test_monitoring_policy_etag_round_trip(client, session):
 
 
 def test_observations_send_idempotency_key_and_detect_replay(client, session):
-    session.queue(200, {"data": {"batch_key": "k", "sequence": 1, "disposition": {"value": "applied", "label": "A"},
-                                 "received_at": "2026-11-18T07:00:00Z"}}, {"Idempotency-Replayed": "true"})
+    session.queue(
+        200,
+        {
+            "data": {
+                "batch_key": "k",
+                "sequence": 1,
+                "disposition": {"value": "applied", "label": "A"},
+                "received_at": "2026-11-18T07:00:00Z",
+            }
+        },
+        {"Idempotency-Replayed": "true"},
+    )
     ack = client.report_device_observations({"devices": []}, "11111111-1111-1111-1111-111111111111")
     assert session.sent[0].headers["Idempotency-Key"] == "11111111-1111-1111-1111-111111111111"
     assert ack.replayed and ack.disposition == "applied"

@@ -16,7 +16,16 @@ dependencies = [
     "keyboard==0.13.5",
     "wmi==1.5.1",
     "pyad==0.6.0",
-    "PyAutoGUI==0.9.54"
+    "PyAutoGUI==0.9.54",
+    # src/core/agent_api: Ed25519 request signing and HTTP transport
+    "cryptography==46.0.7",
+    "requests==2.33.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==8.4.2",
+    "ruff==0.14.3",
 ]
 
 [tool.uv.workspace]
@@ -25,8 +34,13 @@ members = [
     "src/pkgman",
     "src/utils",
     "src/mvc",
+    "src/service_gateway",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"

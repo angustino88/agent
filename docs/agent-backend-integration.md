@@ -33,6 +33,21 @@ Credential Manager via `keyring` (`os_keystore`); a `keys\` file is the `softwar
 The key is per Windows user when it is in Credential Manager, so enroll as the user that runs
 the agent.
 
+## TLS
+
+Off by default because the gateway does not have a certificate yet. One switch in the per-user
+`app_settings.yml` turns it on for the gateway, the legacy client and the agent API together:
+
+```yaml
+tls:
+  verify: true          # check certificates
+  ca_bundle: ""         # optional path to an internal CA bundle
+```
+
+With `verify: true` the gateway client also stops falling back to plain HTTP. The command line
+does not read this file: `enroll` refuses `http://` URLs and checks certificates unless
+`--insecure` is given, and `--ca-bundle` points it at an internal CA.
+
 ## Request signing
 
 `X-Agent-Id`, `X-Agent-Timestamp` (unix seconds, ±300 s), `X-Agent-Nonce` (16 random bytes,
@@ -77,10 +92,16 @@ Bookings are identified by code only; `SessionInfo.booking_id` was removed.
 - **Service install** (`labmango-agent service install`): not implemented; the agent remains the
   per-user tray application.
 
+## Dependencies
+
+`pyproject.toml` (root plus the workspace members `tools`, `src/pkgman`, `src/utils`, `src/mvc`,
+`src/service_gateway`) and `uv.lock` are the single source; `setup_venv.py` runs
+`uv sync --all-packages --frozen`. The old `requirements.txt` had drifted and was removed.
+
 ## Tests
 
 ```
-pytest -q                       # unit tests (no network)
+uv run pytest -q                # unit tests (no network); CI runs them on Windows
 LABMANGO_E2E_URL=... LABMANGO_E2E_AGENT_UID=... LABMANGO_E2E_GRANT=eg_... \
 LABMANGO_E2E_BOOKING_CODE=... pytest tests/integration -q   # against a running backend
 ```

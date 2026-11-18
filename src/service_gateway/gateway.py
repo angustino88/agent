@@ -49,6 +49,15 @@ class GatewayClient:
     token_refresh_callback:
         Called when the server returns 401/403; should return ``True`` on
         success so the original request can be retried.
+    retry_policy:
+        Optional back-off policy for transient failures.
+    verify:
+        TLS certificate verification (``False``, ``True`` or a CA bundle path).
+        Defaults to ``False`` for backward compatibility.
+    allow_http_fallback:
+        When ``True`` (default, backward compatible) the client falls back to
+        plain HTTP if HTTPS fails.  Set ``False`` once the gateway serves valid
+        TLS so credentials are never sent unencrypted.
     """
 
     def __init__(
@@ -60,10 +69,15 @@ class GatewayClient:
         printer: Any = None,
         token_refresh_callback: Optional[Callable[[], bool]] = None,
         retry_policy: Optional[RetryPolicy] = None,
+        verify: bool | str = False,
+        allow_http_fallback: bool = True,
     ) -> None:
         self._candidates: list[str] = self._build_candidates(base_url)
+        if not allow_http_fallback:
+            self._candidates = [c for c in self._candidates if not c.startswith("http://")]
         if not self._candidates:
             raise ValueError(f"GatewayClient: invalid base_url {base_url!r}")
+        self._verify = verify
 
         self._client = ClientRequest(
             base_url=self._candidates[0],
@@ -72,6 +86,7 @@ class GatewayClient:
             logger=logger,
             printer=printer,
             token_refresh_callback=token_refresh_callback,
+            verify=verify,
         )
         self._logger = logger
         self._retry_policy = retry_policy
@@ -372,7 +387,7 @@ class GatewayClient:
         current = (self._client.base_url or "").rstrip("/")
         for url in self._candidates:
             try:
-                requests.get(url, verify=False, timeout=timeout)
+                requests.get(url, verify=self._verify, timeout=timeout)
                 if url.rstrip("/") != current:
                     self._client.base_url = url
                     self._log_warning(

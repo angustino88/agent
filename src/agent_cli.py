@@ -208,7 +208,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_enroll.add_argument("--grant", help=f"one-time grant (eg_...); also read from {GRANT_ENV}")
     p_enroll.add_argument("--unattended", action="store_true", help="never prompt; fail if no grant is given")
     p_enroll.add_argument("--ca-bundle", help="CA bundle used to verify the backend's TLS certificate")
-    p_enroll.add_argument("--insecure", action="store_true", help="allow http:// and skip TLS verification (testing only)")
+    p_enroll.add_argument(
+        "--insecure", action="store_true", help="allow http:// and skip TLS verification (testing only)"
+    )
     p_enroll.add_argument("--no-fingerprint", action="store_true", help="do not send the hardware fingerprint")
     p_enroll.set_defaults(func=cmd_enroll)
 

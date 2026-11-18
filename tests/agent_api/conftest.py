@@ -73,4 +73,6 @@ def session() -> FakeSession:
 
 @pytest.fixture
 def client(identity, key, session) -> AgentApiClient:
-    return AgentApiClient(identity.backend_url, identity=identity, key=key, session=session, clock=lambda: 1_700_000_000)
+    return AgentApiClient(
+        identity.backend_url, identity=identity, key=key, session=session, clock=lambda: 1_700_000_000
+    )
