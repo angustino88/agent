@@ -95,6 +95,13 @@ carrier, and updates it (backend proposal, section 5.4). The observation key is 
 serial, so a license keeps its identity when its dongle or device moves to another computer.
 Licenses without a serial fall back to product-code matching on the backend.
 
+The backend updates a license only if the report is plausible for this computer: the carrier is this
+computer, a unit placed on its bench, or a unit this computer's agent reports as **connected** in its
+device observations; and the license is assigned to that carrier or to this computer (backend
+proposal, section 5.4, decision D8). For a license on a CANcase borrowed from another bench, the
+"connected" rule is what applies, so the Vector device collector (4.1) must report the device with
+the same hardware ID the License Client gives (`DeviceName`, kind `vector_device`).
+
 Where the checks come from: `GET /agent/license-checks` when the backend advertises
 `license_checks`; until then the presets enabled in `licenses.builtin_checks` (local settings).
 Each check runs on its own interval (≥ 15 minutes); the scheduler wakes every 15 minutes. A changed
