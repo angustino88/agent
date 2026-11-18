@@ -16,7 +16,7 @@ from typing import Any, Optional
 
 from . import errors
 from .client import AgentApiClient
-from .identity import _atomic_write
+from .identity import atomic_write
 
 
 class SessionLogOutbox:
@@ -36,7 +36,7 @@ class SessionLogOutbox:
 
     def _write(self, entries: list[dict]) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        _atomic_write(self._path, json.dumps(entries))
+        atomic_write(self._path, json.dumps(entries))
 
     def _log(self, level: str, message: str) -> None:
         if self._logger is not None:

@@ -107,7 +107,7 @@ class FileKeyStore:
         self._dir.mkdir(parents=True, exist_ok=True)
         if os.name == "posix":
             os.chmod(self._dir, 0o700)
-        _atomic_write(self._path(agent_uid), b64url(key.private_bytes), private=True)
+        atomic_write(self._path(agent_uid), b64url(key.private_bytes), private=True)
 
     def delete(self, agent_uid: str) -> None:
         try:
@@ -165,13 +165,22 @@ class IdentityStore:
 
     def save(self, identity: AgentIdentity) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)
-        _atomic_write(self.path, json.dumps(asdict(identity), indent=2, sort_keys=True))
+        atomic_write(self.path, json.dumps(asdict(identity), indent=2, sort_keys=True))
 
     def load_key(self, identity: AgentIdentity) -> Optional[AgentKey]:
-        key = self._key_store.load(identity.agent_uid)
-        if key is not None and key.public_key_sha256 != identity.public_key_sha256:
-            return None  # key store does not hold this identity's key; never use a mismatched key
-        return key
+        """The identity's key from the configured store, else from the file fallback.
+
+        Enrollment and the app may pick different stores (e.g. the OS keystore was unavailable to
+        one of them); either is accepted, but only a key matching the enrolled public key is used.
+        """
+        stores = [self._key_store]
+        if not isinstance(self._key_store, FileKeyStore):
+            stores.append(FileKeyStore(self._dir / "keys"))
+        for store in stores:
+            key = store.load(identity.agent_uid)
+            if key is not None and key.public_key_sha256 == identity.public_key_sha256:
+                return key
+        return None
 
     def save_key(self, agent_uid: str, key: AgentKey) -> None:
         self._key_store.save(agent_uid, key)
@@ -180,13 +189,14 @@ class IdentityStore:
         identity = self.load()
         if identity is not None:
             self._key_store.delete(identity.agent_uid)
+            FileKeyStore(self._dir / "keys").delete(identity.agent_uid)
         try:
             self.path.unlink()
         except FileNotFoundError:
             pass
 
 
-def _atomic_write(path: Path, text: str, *, private: bool = False) -> None:
+def atomic_write(path: Path, text: str, *, private: bool = False) -> None:
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
     try:
         if private and os.name == "posix":

@@ -122,7 +122,7 @@ class Ui_ServerConfigDialog(object):
         self.prod_backend_edit.setPlaceholderText("")
         self.prod_apikey_edit.setText("")
         self.prod_apikey_edit.setPlaceholderText("")
-        self.label_12.setText(QCoreApplication.translate("ServerConfigDialog", u"API Key:", None))
+        self.label_12.setText(QCoreApplication.translate("ServerConfigDialog", u"Agent UID:", None))
         self.service_gateway_group.setTitle(QCoreApplication.translate("ServerConfigDialog", u"Service Gateway", None))
         self.service_gateway_backend_edit.setText("")
         self.service_gateway_backend_edit.setPlaceholderText("")

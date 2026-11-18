@@ -14,7 +14,7 @@ from src.core.agent_api import (
 from src.core.agent_api.signing import b64url_decode, enrollment_message
 from cryptography.hazmat.primitives.serialization import load_der_public_key
 
-from .conftest import AGENT_UID, FakeSession
+from tests.fakes import AGENT_UID, FakeSession
 
 INFO = {
     "data": {
@@ -120,3 +120,23 @@ def test_mismatched_key_is_never_used(store, tmp_path):
     store.save_key(AGENT_UID, AgentKey.generate())
     identity, key = load_credentials(store)
     assert identity.is_enrolled and key is None
+
+
+def test_key_saved_to_the_file_fallback_is_found_by_an_os_keystore_store(store, tmp_path):
+    _enroll(store, FakeSession().queue(200, INFO).queue(201, ENROLLED))
+
+    class EmptyKeystore:
+        storage_tier = "os_keystore"
+
+        def load(self, agent_uid):
+            return None
+
+        def save(self, agent_uid, key):
+            raise AssertionError("not expected")
+
+        def delete(self, agent_uid):
+            pass
+
+    other = IdentityStore(tmp_path / "agent", key_store=EmptyKeystore())
+    identity, key = load_credentials(other)
+    assert identity.is_enrolled and key is not None

@@ -77,7 +77,7 @@ def _read_grant(args: argparse.Namespace) -> Optional[str]:
     grant = args.grant or os.environ.get(GRANT_ENV)
     if grant:
         return grant.strip()
-    if args.unattended or not sys.stdin.isatty():
+    if args.unattended or sys.stdin is None or not sys.stdin.isatty():
         return None
     return getpass.getpass("Enrollment grant: ").strip() or None
 
@@ -183,7 +183,7 @@ def cmd_unenroll(args: argparse.Namespace) -> int:
         print("Not enrolled.")
         return EXIT_OK
     if not args.yes:
-        if not sys.stdin.isatty():
+        if sys.stdin is None or not sys.stdin.isatty():
             print("Refusing to unenroll without --yes in a non-interactive session.", file=sys.stderr)
             return EXIT_ERROR
         answer = input(f"Delete the local identity and key of agent {identity.agent_uid}? [y/N] ")

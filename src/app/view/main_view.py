@@ -43,7 +43,7 @@ class MainView(BaseMainView):
     def logger(self):
         return self.model.logging_model.system_logger
 
-    def show_nofication(self, msg, duration = 'short'):
+    def show_notification(self, msg, duration='short'):
         app_config = self.model.config_model.app_config
         toast = Notification(
             app_id=app_config.APP_DISPLAY_NAME,

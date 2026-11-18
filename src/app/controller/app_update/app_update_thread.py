@@ -6,15 +6,15 @@ class UpdateCheckThread(BaseThread):
     done = Signal(object)          # PackageUpdate | None
     exception = Signal(Exception)
 
-    def __init__(self, lab_api_model, current_version: str, logger):
+    def __init__(self, gateway_model, current_version: str, logger):
         super().__init__(loop=False, e_handle=EHandle.ALL)
-        self._lab_api_model = lab_api_model
+        self._gateway_model = gateway_model
         self._version = current_version
         self._logger = logger
 
     def run_user(self):
         try:
-            pu = self._lab_api_model.check_package_update(self._version)
+            pu = self._gateway_model.check_package_update(self._version)
             self.done.emit(pu)
         except Exception as e:
             if self._logger:

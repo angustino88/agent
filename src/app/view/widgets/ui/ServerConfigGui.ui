@@ -146,7 +146,7 @@
      </rect>
     </property>
     <property name="text">
-     <string>API Key:</string>
+     <string>Agent UID:</string>
     </property>
    </widget>
   </widget>

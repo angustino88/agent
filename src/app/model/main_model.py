@@ -4,7 +4,8 @@ from src.app.model.logging_model import LoggingModel
 from src.app.model.database_model import DatabaseModel
 from src.app.model.config_model import ConfigModel
 from src.app.model.computer_model import ComputerModel
-from src.app.model.lab_api_model import LabApiModel
+from src.app.model.backend_model import BackendModel
+from src.app.model.gateway_model import GatewayModel
 
 class MainModel(BaseMainModel):
     def __init__(self, bus: EventBus, max_workers: int = 4):
@@ -19,11 +20,13 @@ class MainModel(BaseMainModel):
             self.config_model.app_config.SETTINGS_DIR,
             self.config_model.app_config.INFO_DIR,
             self.config_model.app_config.SHARED_INFO_DIR,
+            self.config_model.app_config.AGENT_DIR,
         )
         self.logging_model  = self._make(LoggingModel)
         self.database_model = self._make(DatabaseModel)
         self.computer_model = self._make(ComputerModel)
-        self.lab_api_model  = self._make(LabApiModel)
+        self.gateway_model  = self._make(GatewayModel)
+        self.backend_model  = self._make(BackendModel)
 
     def _configure(self):
         pass

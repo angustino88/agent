@@ -1,5 +1,4 @@
 from src.mvc.slot_guard import slot_guard
-from src.mvc.task_schedule import task, Schedule
 from src.mvc.base_controller import BaseController
 
 class ServerConfigCtrl(BaseController):
@@ -13,7 +12,8 @@ class ServerConfigCtrl(BaseController):
         self._app_config = None
         self._app_settings = None
         self._credential_config = None
-        self._lab_api_model = None
+        self._backend_model = None
+        self._gateway_model = None
         self._message_box = None
         self._server_config_view = None
 
@@ -24,7 +24,8 @@ class ServerConfigCtrl(BaseController):
         self._app_config = self.model.config_model.app_config
         self._app_settings = self.model.config_model.app_settings
         self._credential_config = self.model.config_model.credential_config
-        self._lab_api_model = self.model.lab_api_model
+        self._backend_model = self.model.backend_model
+        self._gateway_model = self.model.gateway_model
         self._message_box = self.view.message_box
         self._server_config_view = self.view.server_config_view
         self._server_config_view.ui.sync_btn.clicked.connect(self.sync_config)
@@ -40,16 +41,16 @@ class ServerConfigCtrl(BaseController):
         self._logger.exception(e)
         self._message_box.error(e, parent=self._server_config_view)
 
-    def _load_prod_config(self):
-        frontend_url = self._app_settings.prod_frontend_url
-        backend_url = self._app_settings.prod_backend_url
-        api_key = self._credential_config.prod_api_key
-        self._server_config_view.set_prod_server(frontend_url, backend_url, api_key)
+    def _load_backend(self):
+        identity = self._backend_model.identity
+        self._server_config_view.set_backend(
+            self._backend_model.frontend_url,
+            identity.backend_url if identity else "(not enrolled)",
+            identity.agent_uid if identity else "",
+        )
 
-    def _load_service_gateway_config(self):
-        backend_url = self._lab_api_model.service_gateway_url
-        token = self._lab_api_model.service_gateway_client.auth_value
-        self._server_config_view.set_service_gateway(backend_url, token)
+    def _load_gateway(self):
+        self._server_config_view.set_service_gateway(self._gateway_model.url, self._gateway_model.client.auth_value or "")
 
     def _load_otp_master_code(self):
         code = self._credential_config.otp_master_code
@@ -60,8 +61,8 @@ class ServerConfigCtrl(BaseController):
         self._server_config_view.set_safe_mode(enabled)
 
     def _load_all(self):
-        self._load_prod_config()
-        self._load_service_gateway_config()
+        self._load_backend()
+        self._load_gateway()
         self._load_otp_master_code()
         self._load_safe_mode()
 
@@ -77,9 +78,8 @@ class ServerConfigCtrl(BaseController):
 
     @slot_guard(on_exception=_handle_exception)
     def sync_config(self):
-        self._lab_api_model.sync_prod_config(raise_on_error=True)
-        self._lab_api_model.sync_otp_master_code(raise_on_error=True)
-        self._lab_api_model.sync_safe_mode(raise_on_error=True)
+        self._gateway_model.sync_config(raise_on_error=True)
+        self._backend_model.reload_identity()
         self._load_all()
         self._message_box.info("Configuration synchronized successfully", parent=self._server_config_view)
 

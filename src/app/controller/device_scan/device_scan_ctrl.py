@@ -1,6 +1,5 @@
 import traceback
 from src.mvc.slot_guard import slot_guard
-from src.mvc.task_schedule import task, Schedule
 from src.mvc.base_controller import BaseController
 from src.app.controller.device_scan.device_scan_thread import DeviceScanThread
 
@@ -20,7 +19,6 @@ class DeviceScanCtrl(BaseController):
         """
         self._logger = self.model.logging_model.system_logger
         self._device_scan_view = self.view.device_scan_view
-        self._api_service = self.model.lab_api_model.service
         self._message_box = self.view.message_box
         self._device_scan_view.ui.refresh_btn.clicked.connect(self.refresh)
         self._device_scan_view.ui.scan_btn.toggled.connect(self.scan)
@@ -53,30 +51,13 @@ class DeviceScanCtrl(BaseController):
         self._device_scan_view.console(dev_name)
         self._device_scan_view.console("-" * 40)
 
-    def _fetch_monitoring_list(self):
-        try:
-            resp = self._api_service.get_computer_monitoring(timeout=5)
-            if not resp.success:
-                raise ValueError(f"get_computer_monitoring failed (status={resp.status_code})")
-            data = resp.data
-            if not isinstance(data, list):
-                raise ValueError("Unexpected monitoring payload (not a list)")
-            return data
-        except Exception as e:
-            raise ValueError(f"Monitoring fetch error: {e}")
-
     def _load_device_table(self):
-        device_list = self._fetch_monitoring_list()
-        table = []
-        for item in device_list:
-            if not isinstance(item, dict):
-                continue
-            key = item.get('key', '')
-            value = item.get('value', '')
-            status = item.get('status', False)
-            table.append((value, key, status))
-        self._device_scan_view.update_device_table(table)
-    
+        """Devices the USB collector currently reports to the backend (name, serial or instance key)."""
+        devices = self.bus_request("get:usb_devices") or []
+        self._device_scan_view.update_device_table(
+            [(device.name, device.serial_number or device.observation_key, True) for device in devices]
+        )
+
     def _start_scan(self):
         if hasattr(self, "_scan_thread") and self._scan_thread and self._scan_thread.isRunning():
             self._device_scan_view.console("⚠️ Scan already running.")

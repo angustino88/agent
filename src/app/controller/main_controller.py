@@ -4,9 +4,9 @@ from src.app.controller.app_info.app_info_ctrl import AppInfoCtrl
 from src.app.controller.app_update.app_update_ctrl import AppUpdateCtrl
 from src.app.controller.user_manual.user_manual_ctrl import UserManualCtrl
 from src.app.controller.login.login_ctrl import LoginCtrl
-from src.app.controller.lab_status.lab_status_ctrl import LabStatusCtrl
-from src.app.controller.lab_session.lab_session_ctrl import LabSessionCtrl
-from src.app.controller.lab_monitoring.lab_monitoring_ctrl import LabMonitoringCtrl
+from src.app.controller.activity.activity_ctrl import ActivityCtrl
+from src.app.controller.remote_session.remote_session_ctrl import RemoteSessionCtrl
+from src.app.controller.monitoring.monitoring_ctrl import MonitoringCtrl
 from src.app.controller.booking_update.booking_update_ctrl import BookingUpdateCtrl
 from src.app.controller.settings.settings_ctrl import SettingsCtrl
 from src.app.controller.server_config.server_config_ctrl import ServerConfigCtrl
@@ -25,9 +25,9 @@ class MainController(BaseMainController):
         self.app_update_controller     = self._make(AppUpdateCtrl)
         self.user_manual_controller    = self._make(UserManualCtrl)
         self.login_controller          = self._make(LoginCtrl)
-        self.lab_session_controller    = self._make(LabSessionCtrl)
-        self.lab_status_controller     = self._make(LabStatusCtrl)
-        self.lab_monitoring_controller = self._make(LabMonitoringCtrl)
+        self.remote_session_controller = self._make(RemoteSessionCtrl)
+        self.activity_controller       = self._make(ActivityCtrl)
+        self.monitoring_controller     = self._make(MonitoringCtrl)
         self.booking_update_controller = self._make(BookingUpdateCtrl)
         self.settings_controller       = self._make(SettingsCtrl)
         self.server_config_controller  = self._make(ServerConfigCtrl)

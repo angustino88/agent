@@ -1,5 +1,4 @@
 from src.mvc.base_model import BaseModel
-from src.mvc.task_schedule import task, Schedule
 from .database.session_logger import SessionLogger
 
 class DatabaseModel(BaseModel):

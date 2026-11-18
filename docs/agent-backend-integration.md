@@ -1,6 +1,6 @@
 # Agent ↔ Backend Integration (signed agent API)
 
-Status: phase 1 implemented on branch `claude/beautiful-heisenberg-ut8780`.
+Status: implemented for every agent route the backend serves today.
 Contract source: lab-mango `openapi/agents.yml`, `core/agents/` and `docs/agent-platform/`.
 
 The backend no longer serves the legacy agent routes (`/api/labs/lab-status/sku/...`,
@@ -58,39 +58,62 @@ Redirects are never followed. Implementation: `src/core/agent_api/signing.py`, `
 
 ## Feature mapping
 
-| Agent feature | Before | Now |
+| Agent feature | Before | Now (owner) |
 |---|---|---|
-| Liveness | — | `POST /agent/heartbeat` every 60 s (`LabApiModel.send_agent_heartbeat`) |
-| Lab status | `PUT /api/labs/lab-status/sku/{sku}` | `PATCH /agent/equipment/activity` (`LabStatusCtrl`) |
-| Session log | `POST /api/labs/lab-sessions/log` | `POST /agent/session-logs` via a bounded on-disk outbox, retried with the same `event_key` |
-| Booking login | `GET /api/labs/lab-bookings/code/{code}` + local checks | `validate` (read-only) → AD lookup → `check-in` (booking becomes in progress) |
-| Booking recheck | same GET every 5 min | `validate`; not eligible = booking ended |
-| Extend booking | `PATCH /api/labs/lab-bookings/{id}` | `POST /agent/bookings/actions/extend` with readable refusal reasons |
+| Liveness | — | `POST /agent/heartbeat` every 60 s (`BackendModel.send_heartbeat`) |
+| Live activity | `PUT /api/labs/lab-status/sku/{sku}` | `PATCH /agent/equipment/activity` on change and every 5 min (`ActivityCtrl`) |
+| Remote session log | `POST /api/labs/lab-sessions/log` | `POST /agent/session-logs` through a bounded on-disk outbox, retried with the same `event_key` (`RemoteSessionCtrl`) |
+| Booking login | `GET /api/labs/lab-bookings/code/{code}` + local checks | `validate` (read-only) → AD lookup → `check-in`, booking becomes `in_progress` (`LoginCtrl`) |
+| Booking follow-up | same GET every 5 min | `validate`; not eligible means the booking ended (`SessionTimer`) |
+| Extend booking | `PATCH /api/labs/lab-bookings/{id}` | `POST /agent/bookings/actions/extend` with readable refusal reasons (`BookingUpdateCtrl`) |
 | End booking | `PATCH ... status=done` | `POST /agent/bookings/actions/complete` |
-| Backend alive | `GET <backend root>` | `GET /agent/info` |
-| Device monitoring | `/api/labs/lab-computers` + `/api/labs/lab-monitoring` | client ready (`get_monitoring_policy`, `report_device_observations`); collector not migrated yet |
+| USB devices | filter list from `/api/labs/lab-computers`, events to `/api/labs/lab-monitoring` | every USB device with its serial, as complete snapshots to `POST /agent/device-observations/actions/report`; the backend matches serials to equipment (`UsbDeviceCollector`, `DeviceObservationReporter`) |
+| Monitoring policy | — | `GET /agent/monitoring-policy` every 10 min with ETag (`MonitoringCtrl`) |
+| Backend available | `GET <backend root>` | `GET /agent/info` |
 
-The backend now decides booking eligibility (approval, this computer's bench, time window) and
-answers every refusal identically, so the login dialog can no longer say *why* a code was refused.
-Bookings are identified by code only; `SessionInfo.booking_id` was removed.
+The backend decides booking eligibility (approval, this computer's bench, time window) and answers
+every refusal identically, so the login screen cannot say *why* a code was refused. Bookings are
+identified by code only.
 
-## Not migrated yet (no agent route on the backend, or follow-up work)
+### Device observations
 
-- **Device observations collector**: `PhysicalDeviceMonitor` still reads filters from the removed
-  `/api/labs/lab-computers`. Next step: drive it from `GET /agent/monitoring-policy` and report
-  `collector_key` / `generation_key` / `sequence` batches with a durable `Idempotency-Key`.
-- **Computer info snapshot** (`ComputerInfoMonitor`): backend `PATCH /agent/equipment/state` is
-  proposed only.
-- **Storage quota, audit events, device scan**: no agent route exists.
-- **Admin list and OTP for temporary logins** (`/api/user-groups`, `/api/send-otp`): user-authenticated
-  backend routes; the service-gateway path still works for OTP.
-- **Booking "maintenance" mode**: the agent API no longer returns the project, so maintenance
-  bookings are not detected.
-- **Packaged CLI output**: the PyInstaller build has no console (`WINDOW = 'FALSE'`), so
-  `LabMango.exe enroll` works and returns exit codes but prints nothing. A separate console entry
-  point (e.g. `labmango-agent.exe`) is needed for operators.
-- **Service install** (`labmango-agent service install`): not implemented; the agent remains the
-  per-user tray application.
+Each report is a complete snapshot of the connected top-level USB devices (`collector_key = "usb"`).
+The backend disconnects devices a complete snapshot omits, and complete snapshots may skip sequence
+numbers. Therefore:
+
+- a snapshot is sent when the device set changes (after 3 matching scans, 5 s apart), and otherwise
+  every half `freshness_seconds` (60 s with today's policy) to keep connections fresh;
+- the sequence is the wall clock in milliseconds, never below the last one sent, so it keeps
+  increasing after a reinstall;
+- each batch (`Idempotency-Key` + body) is stored in `agent\observations_usb.json` before sending and
+  resent byte-identical until acknowledged; `409` or `422` drops it and the next cycle sends a new
+  snapshot;
+- `observation_key` is `usb:` + the Windows instance id; Windows-generated instance ids (containing
+  `&`) are not serial numbers and are reported with an empty serial.
+
+## Removed, because the backend has no agent route
+
+| Feature | What happens now |
+|---|---|
+| Computer information (OS, IP, disks, system info) | Not reported. Backend `PATCH /agent/equipment/state` is proposed only; re-add when it ships |
+| Storage quota upload | Still measured; written to `<sharing root>\.system\quota\quota_report.json` only |
+| USB filter list, audit events | Replaced by device observations |
+| Admin list from `/api/user-groups` | `login.admin_usernames` in `app_settings.yml` |
+| OTP via the backend's `/api/send-otp` | OTP is sent through the service gateway only |
+| Shared API key | Removed; the backend URL comes from the enrolled identity |
+
+## Behaviour changes
+
+- An administrator login without a booking reports activity `maintaining` (it used to come from a
+  booking project named "maintenance", which the agent API no longer returns).
+- Booking codes: only the `BOOKING-` prefix is normalised; the rest is matched exactly by the backend.
+- The packaged `LabMango.exe` attaches to the terminal it was started from for `enroll`, `status`
+  and `unenroll`, so output and prompts are visible.
+
+## Not done yet
+
+- **Service install** (`labmango-agent service install`): the agent remains a per-user tray
+  application; the backend's device design expects a privileged service for enforcement.
 
 ## Dependencies
 

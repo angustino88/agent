@@ -186,13 +186,11 @@ class UpdateChecker:
             return None
         if not (lv > cv):
             return None
-        c = str(cv).split(".")
-        l = str(lv).split(".")
-        while len(c) < 3: c.append("0")
-        while len(l) < 3: l.append("0")
-        if c[0] != l[0]:
+        current = (str(cv).split(".") + ["0", "0", "0"])[:3]
+        latest = (str(lv).split(".") + ["0", "0", "0"])[:3]
+        if current[0] != latest[0]:
             return "major"
-        if c[1] != l[1]:
+        if current[1] != latest[1]:
             return "minor"
         return "patch"
 

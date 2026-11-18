@@ -21,8 +21,8 @@ jobs:
         run: uv sync --python 3.12 --all-packages --frozen
       - name: Lint (agent API, CLI, tests)
         run: |
-          uv run ruff check src/core/agent_api src/agent_cli.py tests
-          uv run ruff format --check src/core/agent_api src/agent_cli.py tests
+          uv run ruff check src/app src/core src/agent_cli.py src/main.py tests
+          uv run ruff format --check src/core src/agent_cli.py tests
       - name: Tests
         run: uv run pytest -q
         env:

@@ -3,6 +3,13 @@ import sys
 from pathlib import Path
 from pydantic import BaseModel
 
+from src.utils.path import PathUtil
+from src.pkgman.version import Version
+from src.utils.config import ConfigFileManager
+from src.mvc.config import RuntimeDir, BundledPath, LogFile, ConfigFile, ServiceUrl
+from prj.config.version.version_config import VersionConfig
+from prj.config.builder.build_config import BuildConfig
+
 def _resolve_repo_root() -> Path:
     env_root = os.environ.get("LABMANGO_ROOT")
     if env_root:
@@ -23,13 +30,6 @@ def get_bundle_dir() -> Path:
     if getattr(sys, 'frozen', False):
         return Path(sys._MEIPASS)  # type: ignore[attr-defined]
     return _resolve_repo_root()
-
-from src.utils.path import PathUtil
-from src.pkgman.version import Version
-from src.utils.config import ConfigFileManager
-from src.mvc.config import MarkedConfig, RuntimeDir, BundledPath, LogFile, ConfigFile, ServiceUrl
-from prj.config.version.version_config import VersionConfig
-from prj.config.builder.build_config import BuildConfig
 
 try:
     from prj.config.version.build_info import BuildInfo
@@ -116,10 +116,8 @@ class AppConfig(BaseModel):
     APP_SETTINGS_FILE:         ConfigFile = PathUtil.join(SETTINGS_DIR, 'app_settings.yml')
     USER_STORAGE_INFO_FILE:    ConfigFile = PathUtil.join(SHARED_INFO_DIR, 'user_storage.json')
     USER_QUOTA_CONFIG_FILE:    ConfigFile = PathUtil.join(SHARED_INFO_DIR, 'user_quota_config.json')
-    DEVICE_MONITOR_INFO_FILE:  ConfigFile = PathUtil.join(SHARED_INFO_DIR, 'monitored_devices.json')
-    COMPUTER_INFO_FILE:        ConfigFile = PathUtil.join(INFO_DIR, 'computer.json')
 
-    # Agent identity (machine-wide; shared with the `enroll` / `status` command line)
+    # Agent identity and backend delivery state (machine-wide; shared with the command line)
     AGENT_DIR:                 RuntimeDir = PathUtil.join(SHARED_APP_DIR, 'agent')
     SESSION_LOG_OUTBOX_FILE:   ConfigFile = PathUtil.join(SHARED_APP_DIR, 'agent', 'session_log_outbox.json')
 

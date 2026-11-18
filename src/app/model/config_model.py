@@ -1,5 +1,3 @@
-import os
-import json
 from src.mvc.base_model import BaseModel
 from src.app.model.config.app_config import AppConfig, AppConfigDynamic
 from src.app.model.config.app_settings import AppSettings
@@ -25,7 +23,7 @@ class ConfigModel(BaseModel):
         app_config_mgr = AppConfigFileManager(self._app_config)
         try:
             app_config_mgr.load()
-        except:
+        except Exception:  # unreadable or invalid file: start from defaults
             app_config_mgr.reset_to_default()
             app_config_mgr.load()
         self._app_config_dynamic = AppConfigDynamic.build(app_config_mgr)
@@ -34,7 +32,7 @@ class ConfigModel(BaseModel):
         settings_mgr = AppSettingsFileManager(self._app_config)
         try:
             settings_mgr.load()
-        except:
+        except Exception:  # unreadable or invalid file: start from defaults
             settings_mgr.reset_to_default()
             settings_mgr.load()
         self._app_settings = AppSettings.build(settings_mgr)
@@ -43,7 +41,7 @@ class ConfigModel(BaseModel):
         user_quota_mgr = UserQuotaConfigFileManager(self._app_config)
         try:
             user_quota_mgr.load()
-        except:
+        except Exception:  # unreadable or invalid file: start from defaults
             user_quota_mgr.reset_to_default()
             user_quota_mgr.load()
         self._user_quota_config = UserQuotaConfig.build(user_quota_mgr)

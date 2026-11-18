@@ -6,7 +6,7 @@ from src.core.agent_api import ActivityReport, AgentApiClient, errors
 from src.core.agent_api.signing import b64url_decode, request_message
 from cryptography.hazmat.primitives.serialization import load_der_public_key
 
-from .conftest import AGENT_UID, BACKEND_KEY
+from tests.fakes import AGENT_UID, BACKEND_KEY
 
 
 def _verify(sent, key, path):
