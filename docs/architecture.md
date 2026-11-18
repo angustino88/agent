@@ -4,6 +4,8 @@ The Lab Mango agent runs on each lab computer (Windows). It gates logins with a 
 user OTP, times the session, reports live activity, remote sessions and USB devices to the
 department backend, and keeps itself updated through the service gateway.
 
+Planned: [bench device and license monitoring](design/bench-device-and-license-monitoring.md).
+
 ## Systems it talks to
 
 | System | How | Owner in the agent |
