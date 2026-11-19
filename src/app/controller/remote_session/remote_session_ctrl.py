@@ -118,14 +118,13 @@ class RemoteSessionCtrl(BaseController):
             return
         self._login_info = login_info
         self._login_at = datetime.now()
-        client = RemoteDesktop.get_session_client()
         self._session = RemoteSession(
             computer_name=self._computer_name,
             technical_user=login_info.technical_user,
             remote_user=login_info.username,
             remote_user_display_name=login_info.user_display_name,
-            remote_ip=client.ip,
-            remote_computer=client.name,
+            remote_ip=RemoteDesktop.get_client_ip() or "",
+            remote_computer=RemoteDesktop.get_client_hostname() or "",
             booking_code=booking.booking_code if booking else None,
             starts_at=booking.starts_at if booking else None,
             ends_at=booking.ends_at if booking else None,
