@@ -7,9 +7,8 @@ APP_SETTINGS_SCHEMA = {
         "type": "dict",
         "schema": {
             "frontend_url": {"type": "string", "required": True},
-            # No longer used: the backend URL comes from the enrolled agent identity.
-            # Kept optional so settings files written by older versions stay valid.
-            "backend_url": {"type": "string", "required": False},
+            # The server URL comes from the enrolled identity only. Files from older versions may still
+            # hold "backend_url"; unknown keys are allowed and ignored.
         },
         "required": False,
     },

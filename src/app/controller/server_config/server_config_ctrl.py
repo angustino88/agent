@@ -50,7 +50,9 @@ class ServerConfigCtrl(BaseController):
         )
 
     def _load_gateway(self):
-        self._server_config_view.set_service_gateway(self._gateway_model.url, self._gateway_model.client.auth_value or "")
+        # Never display the access token itself: whether the agent holds one is enough to diagnose.
+        token = "set" if self._gateway_model.client.auth_value else "not logged in"
+        self._server_config_view.set_service_gateway(self._gateway_model.url, token)
 
     def _load_otp_master_code(self):
         code = self._credential_config.otp_master_code

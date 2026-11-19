@@ -89,7 +89,7 @@
      </rect>
     </property>
     <property name="text">
-     <string>Back-End:</string>
+     <string>Server:</string>
     </property>
    </widget>
    <widget class="QLineEdit" name="prod_backend_edit">
@@ -194,7 +194,7 @@
      </rect>
     </property>
     <property name="text">
-     <string>Back-End:</string>
+     <string>URL:</string>
     </property>
    </widget>
    <widget class="QLabel" name="label_11">

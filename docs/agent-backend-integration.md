@@ -16,7 +16,7 @@ agent UID and a one-time grant (`eg_…`, at most 60 minutes). On the computer, 
 that runs the agent:
 
 ```
-LabMango enroll --url https://<lab-mango-frontend> --agent-uid <uuid> [--grant eg_...] [--unattended]
+LabMango enroll --url <server-url> --agent-uid <uuid> [--grant eg_...] [--unattended]
 LabMango status [--json]
 LabMango unenroll [--yes]
 ```
@@ -56,11 +56,17 @@ single use) and `X-Agent-Signature`: Ed25519 over the NUL-joined
 The signed path is the backend path (`/agent/...`); a proxy must forward it unchanged (or strip only a
 prefix that is part of the enrolled URL).
 
-**The agent never knows the backend address.** It enrolls at the Lab Mango frontend URL that the setup
-dialog shows (the web app's own address). In production the frontend's Nginx forwards `/agent/` to the
-backend or Router, like `/api/`, so the backend stays hidden from users and lab computers. That Nginx
-must pass the path, body and the `X-Agent-*`, `Idempotency-Key` and `If-None-Match` headers unchanged
-(requests are signed over the body hash) and allow bodies of at least 256 KiB.
+**Server URL.** The setup dialog in the web app shows it in the enroll command:
+
+| Environment | `--url` | |
+|---|---|---|
+| Production | The public Nginx or Router address (`VITE_AGENT_URL` in the web app) | The application server is never exposed; only Nginx/Router is reachable from lab computers |
+| Development | The backend directly (`VITE_API_URL`), with `--insecure` for `http://` | |
+
+The URL is not a secret: every request is signed with the computer's own key and enrollment needs a
+one-time grant. The agent holds no backend API key and no production backend address in its settings.
+The proxy must pass the path, the body and the `X-Agent-*`, `Idempotency-Key` and `If-None-Match`
+headers unchanged (requests are signed over the body hash) and allow bodies of at least 256 KiB.
 Redirects are never followed. Implementation: `src/core/agent_api/signing.py`, `client.py`.
 
 ## Feature mapping
