@@ -67,7 +67,13 @@ class BookingUpdateView(QDialog, BaseView, metaclass=metaclass_factory(QDialog, 
         self._on_action_changed()
 
     def get_action(self) -> BookingAction:
-        return self.ui.booking_status_combo.currentData() or BookingAction.EXTEND
+        # Qt returns item data of a ``str`` enum as a plain ``str``: convert it back, or an identity
+        # check against BookingAction.EXTEND fails (end time disabled, Update would end the booking).
+        data = self.ui.booking_status_combo.currentData()
+        try:
+            return BookingAction(data)
+        except ValueError:
+            return BookingAction.EXTEND
 
     def get_ends_at(self) -> datetime | None:
         """The chosen end time (naive local time), or ``None`` when it is not after the start."""
