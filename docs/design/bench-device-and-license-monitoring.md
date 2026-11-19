@@ -90,6 +90,18 @@ section 5). The agent implements a closed catalog of read-only probes; a check i
 | Extraction | `xml` (ElementTree path), `json` (dotted path with `[*]`), `text` (regex with named groups), `values` (registry); field sources for product, product code, version, expiry, final expiry, carrier ID, vendor license ID, reactivatable, carrier type; date formats; "never" values |
 | Carrier | `computer`, `device` / `dongle` (hardware ID kind + `carrier_id`), `server`, `equipment` (unit chosen in the web app), or `mapped` per license from a tool field |
 
+**Standard report (vendor-neutral).** Every check, whatever the tool, reports the same body to
+`POST /agent/license-checks/{key}/actions/report`: run fields (`revision`, `sequence`, `status`,
+`started_at`, `duration_ms`, `is_complete`, `error`) and one item per license: `observation_key`,
+`vendor`, `product_code`, `product_name`, `license_serial`, `carrier {type, hardware_id?, equipment_uid?}`,
+`expires_at`, `final_expires_at`, `max_version`, `is_reactivatable`. A tool-specific mapping
+(the check's extraction) fills it; nothing vendor-specific is on the wire.
+
+**Carrier IDs are not PnP IDs.** A PnP ID identifies a device for device monitoring only. A carrier
+(`device` / `dongle`) is identified by the ID the license tool itself reports; today the only kind is
+`vector_device` (Vector `DeviceName`). Tools that name no hardware use `computer`, `server` or
+`equipment`. A new tool that names its hardware adds one carrier ID kind on agent and backend.
+
 **Push by license serial.** The agent does not decide which Lab Mango license a result belongs to:
 it pushes every license it finds with its `license_serial` (the tool's own license ID) and carrier;
 the backend finds the `License` whose `serial_number` is that serial, compares expiry, version and

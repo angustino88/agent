@@ -60,7 +60,11 @@ TARGET_FIELDS = (
     "carrier_type",  # with carrier type "mapped": the tool's own value, translated by carrier.type_map
 )
 
-MAPPED_CARRIER = "mapped"  # carrier type taken per license from the "carrier_type" field
+MAPPED_CARRIER = "mapped"
+
+# IDs a license tool reports for the hardware that holds its licenses. A PnP ID is for device
+# monitoring only: no license tool reports one. Add a kind here (and on the backend) for a new tool.
+CARRIER_ID_KINDS = ("vector_device",)  # carrier type taken per license from the "carrier_type" field
 
 MAX_ARGS = 16
 MAX_ARG_LENGTH = 256
@@ -236,8 +240,10 @@ def _carrier(data: Any, extract: Extract) -> Carrier:
     if kind == MAPPED_CARRIER and "carrier_type" not in extract.fields:
         raise InvalidCheck("a mapped carrier needs a 'carrier_type' field")
     if possible & {CarrierType.DEVICE, CarrierType.DONGLE}:
-        if not carrier.hardware_id_kind or "carrier_id" not in extract.fields:
-            raise InvalidCheck("device and dongle carriers need 'hardware_id_kind' and a 'carrier_id' field")
+        if carrier.hardware_id_kind not in CARRIER_ID_KINDS or "carrier_id" not in extract.fields:
+            raise InvalidCheck(
+                f"device and dongle carriers need 'hardware_id_kind' ({', '.join(CARRIER_ID_KINDS)}) and a 'carrier_id' field"
+            )
     if CarrierType.EQUIPMENT in possible and not carrier.equipment_uid:
         raise InvalidCheck("an equipment carrier needs 'equipment_uid'")
     return carrier

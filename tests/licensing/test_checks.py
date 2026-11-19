@@ -34,6 +34,7 @@ def test_the_vector_preset_is_a_valid_check():
         ({"extract__fields": {"product_name": "P", "password": "X"}}, "unknown fields"),
         ({"interval_minutes": 1}, "interval_minutes"),
         ({"carrier": {"type": "device"}}, "hardware_id_kind"),
+        ({"carrier": {"type": "device", "hardware_id_kind": "pnp_id"}}, "vector_device"),
         ({"carrier": {"type": "equipment"}}, "equipment_uid"),
     ],
 )
