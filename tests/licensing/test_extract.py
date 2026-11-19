@@ -53,7 +53,7 @@ def test_json_tool_output():
             "date_formats": ["%Y-%m-%d"],
             "never_values": ["never"],
         },
-        "carrier": {"type": "dongle", "hardware_id_kind": "acme_dongle"},
+        "carrier": {"type": "dongle", "hardware_id_kind": "vector_device"},
     }
     out = (
         b'{"licenses": [{"product": {"name": "Suite"}, "expires": "2027-01-31", "dongle": {"serial": "D-1"}},'
@@ -61,7 +61,7 @@ def test_json_tool_output():
     )
     suite, viewer = run(check, out)
     assert suite.expires_at == datetime(2027, 1, 31, 23, 59, 59)  # a date means the end of that day
-    assert viewer.expires_at is None and viewer.carrier_hardware_id == HardwareId("acme_dongle", "D-1")
+    assert viewer.expires_at is None and viewer.carrier_hardware_id == HardwareId("vector_device", "D-1")
 
 
 def test_text_output_with_regex_for_a_license_on_the_pc():
