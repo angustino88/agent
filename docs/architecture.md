@@ -12,7 +12,7 @@ Planned: [bench device and license monitoring](design/bench-device-and-license-m
 |---|---|---|
 | Department backend (lab-mango) | Signed agent API `/agent/...` with the enrolled identity | `BackendModel` |
 | Service gateway | JWT login; configuration, OTP delivery, package updates | `GatewayModel` |
-| Router (Nginx) | Not called directly: the backend URL includes the department prefix (`/api/dept_a`), which Nginx strips; requests are signed for `/agent/...` | — |
+| Frontend Nginx / Router | The agent's server URL is the Lab Mango frontend address; its Nginx forwards `/agent/` to the backend or Router, so the backend address is never on the computer; requests are signed for `/agent/...` | — |
 | Active Directory | User lookup at login (`pyad`) | `LoginCtrl` |
 | Windows | Login/logout events, WMI (USB, hardware), RDP client info | controllers / `ComputerModel` |
 
@@ -108,7 +108,7 @@ tests/                    pytest: agent_api, monitoring, app types, shared clien
 
 | Path (Windows) | Content | Compatibility |
 |---|---|---|
-| `%PROGRAMDATA%\LabMango\agent\identity.json` | Agent UID, backend URL and key, key store tier | Written by `enroll` |
+| `%PROGRAMDATA%\LabMango\agent\identity.json` | Agent UID, server URL, backend key, key store tier | Written by `enroll` |
 | Credential Manager `labmango_agent` / `keys\` | Ed25519 private key | Never leaves the computer |
 | `%PROGRAMDATA%\LabMango\agent\session_log_outbox.json` | Session logs not yet acknowledged | |
 | `%PROGRAMDATA%\LabMango\agent\observations_pnp.json`, `observations_discovery.json` | Last sequence and the pending observation batch per collector | |

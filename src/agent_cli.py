@@ -1,6 +1,6 @@
 """Lab Mango agent command line (docs/agent-platform/agent-cli.md in lab-mango).
 
-    labmango-agent enroll --url <backend-origin> --agent-uid <uuid> [--grant <grant>] [--unattended]
+    labmango-agent enroll --url <lab-mango-frontend-url> --agent-uid <uuid> [--grant <grant>] [--unattended]
     labmango-agent status [--json]
     labmango-agent unenroll [--yes]
 
@@ -203,7 +203,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_enroll = sub.add_parser("enroll", help="enroll this computer with a one-time grant")
-    p_enroll.add_argument("--url", required=True, help="backend origin, including any Router prefix")
+    p_enroll.add_argument("--url", required=True, help="Lab Mango server URL shown in the web app's setup dialog (the frontend address)")
     p_enroll.add_argument("--agent-uid", required=True, help="the pending agent created by the operator")
     p_enroll.add_argument("--grant", help=f"one-time grant (eg_...); also read from {GRANT_ENV}")
     p_enroll.add_argument("--unattended", action="store_true", help="never prompt; fail if no grant is given")

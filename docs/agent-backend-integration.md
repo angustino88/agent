@@ -16,7 +16,7 @@ agent UID and a one-time grant (`eg_…`, at most 60 minutes). On the computer, 
 that runs the agent:
 
 ```
-LabMango enroll --url https://<backend>[/api/<dept>] --agent-uid <uuid> [--grant eg_...] [--unattended]
+LabMango enroll --url https://<lab-mango-frontend> --agent-uid <uuid> [--grant eg_...] [--unattended]
 LabMango status [--json]
 LabMango unenroll [--yes]
 ```
@@ -28,7 +28,7 @@ disk or logs. Exit codes follow lab-mango `docs/agent-platform/agent-cli.md`
 `--ca-bundle` sets a custom CA; `--insecure` allows `http://` and skips TLS checks (testing only).
 
 State lives in `%PROGRAMDATA%\LabMango\agent\` (override with `LABMANGO_AGENT_HOME`):
-`identity.json` (agent UID, backend URL and key, no secrets) and the private key in the Windows
+`identity.json` (agent UID, server URL and backend key, no secrets) and the private key in the Windows
 Credential Manager via `keyring` (`os_keystore`); a `keys\` file is the `software` fallback.
 The key is per Windows user when it is in Credential Manager, so enroll as the user that runs
 the agent.
@@ -53,7 +53,14 @@ does not read this file: `enroll` refuses `http://` URLs and checks certificates
 `X-Agent-Id`, `X-Agent-Timestamp` (unix seconds, ±300 s), `X-Agent-Nonce` (16 random bytes,
 single use) and `X-Agent-Signature`: Ed25519 over the NUL-joined
 `labmango-agent-request-v1, backend_key, agent_uid, METHOD, path, timestamp, nonce, sha256_hex(body)`.
-The signed path is the backend path (`/agent/...`) without the Router prefix, which Nginx strips.
+The signed path is the backend path (`/agent/...`); a proxy must forward it unchanged (or strip only a
+prefix that is part of the enrolled URL).
+
+**The agent never knows the backend address.** It enrolls at the Lab Mango frontend URL that the setup
+dialog shows (the web app's own address). In production the frontend's Nginx forwards `/agent/` to the
+backend or Router, like `/api/`, so the backend stays hidden from users and lab computers. That Nginx
+must pass the path, body and the `X-Agent-*`, `Idempotency-Key` and `If-None-Match` headers unchanged
+(requests are signed over the body hash) and allow bodies of at least 256 KiB.
 Redirects are never followed. Implementation: `src/core/agent_api/signing.py`, `client.py`.
 
 ## Feature mapping
@@ -106,7 +113,7 @@ Discovery rows never count as presence, reporting or alerts.
 | USB filter list (`monitored_devices` JSON), audit events | Replaced by registered PnP IDs and expected devices |
 | Admin list from `/api/user-groups` | `login.admin_usernames` in `app_settings.yml` |
 | OTP via the backend's `/api/send-otp` | OTP is sent through the service gateway only |
-| Shared API key | Removed; the backend URL comes from the enrolled identity |
+| Shared API key | Removed; the server URL comes from the enrolled identity |
 
 ## Behaviour changes
 
