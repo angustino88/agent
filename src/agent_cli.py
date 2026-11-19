@@ -1,6 +1,6 @@
 """Lab Mango agent command line (docs/agent-platform/agent-cli.md in lab-mango).
 
-    labmango-agent enroll --url <lab-mango-frontend-url> --agent-uid <uuid> [--grant <grant>] [--unattended]
+    labmango-agent enroll --agent-uid <uuid> [--grant <grant>] [--unattended] [--url <server-url>]
     labmango-agent status [--json]
     labmango-agent unenroll [--yes]
 
@@ -36,6 +36,7 @@ from src.core.agent_api import (  # noqa: E402
 
 COMMANDS = ("enroll", "status", "unenroll")
 GRANT_ENV = "LABMANGO_AGENT_GRANT"
+GATEWAY_ENV = "LABMANGO_GATEWAY_URL"
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -82,11 +83,36 @@ def _read_grant(args: argparse.Namespace) -> Optional[str]:
     return getpass.getpass("Enrollment grant: ").strip() or None
 
 
+def _gateway_url(args: argparse.Namespace) -> str:
+    if args.gateway_url or os.environ.get(GATEWAY_ENV):
+        return args.gateway_url or os.environ[GATEWAY_ENV]
+    from src.app.model.config.app_config import AppConfig  # the packaged gateway address
+
+    return str(AppConfig().SERVICE_GATEWAY_URL)
+
+
+def _server_url(args: argparse.Namespace) -> Optional[str]:
+    """``--url``, else the server URL the service gateway publishes for lab computers."""
+    if args.url:
+        return args.url
+    from src.core.gateway import ServerUrlUnavailable, resolve_server_url
+
+    try:
+        return resolve_server_url(_gateway_url(args), verify=_tls_verify(args))
+    except ServerUrlUnavailable as error:
+        print(f"Could not get the server URL from the service gateway: {error}. Use --url.", file=sys.stderr)
+        return None
+
+
 def cmd_enroll(args: argparse.Namespace) -> int:
     grant = _read_grant(args)
     if not grant:
         print(f"No grant given: use --grant, {GRANT_ENV} or run interactively.", file=sys.stderr)
         return EXIT_GRANT
+    url = _server_url(args)
+    if not url:
+        return EXIT_UNREACHABLE
+    args.url = url
     if args.url.startswith("http://") and not args.insecure:
         print("Refusing a plain-HTTP backend URL; use HTTPS (or --insecure for local testing).", file=sys.stderr)
         return EXIT_ERROR
@@ -203,7 +229,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_enroll = sub.add_parser("enroll", help="enroll this computer with a one-time grant")
-    p_enroll.add_argument("--url", required=True, help="Lab Mango server URL shown in the web app's setup dialog (the frontend address)")
+    p_enroll.add_argument(
+        "--url", help="server URL; default: the one the service gateway publishes (prod-server-config backend_url)"
+    )
+    p_enroll.add_argument("--gateway-url", help=f"service gateway to ask for the server URL; also {GATEWAY_ENV}")
     p_enroll.add_argument("--agent-uid", required=True, help="the pending agent created by the operator")
     p_enroll.add_argument("--grant", help=f"one-time grant (eg_...); also read from {GRANT_ENV}")
     p_enroll.add_argument("--unattended", action="store_true", help="never prompt; fail if no grant is given")
