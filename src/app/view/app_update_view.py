@@ -1,5 +1,5 @@
 from PySide6.QtGui import QFont
-from PySide6.QtCore import Signal, QEvent, Qt
+from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import QDialog, QMessageBox
 from src.utils.metaclass import metaclass_factory
 from src.mvc.base_view import BaseView

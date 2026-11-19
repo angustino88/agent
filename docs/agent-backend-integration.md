@@ -1,0 +1,153 @@
+# Agent ↔ Backend Integration (signed agent API)
+
+Status: implemented for every agent route the backend serves today.
+Contract source: lab-mango `openapi/agents.yml`, `core/agents/` and `docs/agent-platform/`.
+
+The backend no longer serves the legacy agent routes (`/api/labs/lab-status/sku/...`,
+`/api/labs/lab-sessions/log`, `/api/labs/lab-bookings/code/...`, `/api/labs/lab-computers/...`,
+`/api/labs/lab-monitoring`, `/api/labs/analytics/storage-quota`, `/api/labs/lab-audit/...`) and no
+longer accepts a shared API key for agents. Each computer now enrolls once and signs every request
+with its own Ed25519 key.
+
+## Enrollment (once per computer)
+
+An operator creates the agent in Lab Mango (computing inventory → Agent → Set up) and gets an
+agent UID and a one-time grant (`eg_…`, at most 60 minutes). On the computer, as the account
+that runs the agent:
+
+```
+LabMango enroll --url <server-url> --agent-uid <uuid> [--grant eg_...] [--unattended]
+LabMango status [--json]
+LabMango unenroll [--yes]
+```
+
+From source: `python src/main.py enroll ...` or `python src/agent_cli.py enroll ...`.
+The grant can also come from `LABMANGO_AGENT_GRANT` or a hidden prompt; it is never written to
+disk or logs. Exit codes follow lab-mango `docs/agent-platform/agent-cli.md`
+(0 ok, 2 grant, 3 proof, 4 conflict/already enrolled, 5 unreachable).
+`--ca-bundle` sets a custom CA; `--insecure` allows `http://` and skips TLS checks (testing only).
+
+State lives in `%PROGRAMDATA%\LabMango\agent\` (override with `LABMANGO_AGENT_HOME`):
+`identity.json` (agent UID, server URL and backend key, no secrets) and the private key in the Windows
+Credential Manager via `keyring` (`os_keystore`); a `keys\` file is the `software` fallback.
+The key is per Windows user when it is in Credential Manager, so enroll as the user that runs
+the agent.
+
+## TLS
+
+Off by default because the gateway does not have a certificate yet. One switch in the per-user
+`app_settings.yml` turns it on for the gateway, the legacy client and the agent API together:
+
+```yaml
+tls:
+  verify: true          # check certificates
+  ca_bundle: ""         # optional path to an internal CA bundle
+```
+
+With `verify: true` the gateway client also stops falling back to plain HTTP. The command line
+does not read this file: `enroll` refuses `http://` URLs and checks certificates unless
+`--insecure` is given, and `--ca-bundle` points it at an internal CA.
+
+## Request signing
+
+`X-Agent-Id`, `X-Agent-Timestamp` (unix seconds, ±300 s), `X-Agent-Nonce` (16 random bytes,
+single use) and `X-Agent-Signature`: Ed25519 over the NUL-joined
+`labmango-agent-request-v1, backend_key, agent_uid, METHOD, path, timestamp, nonce, sha256_hex(body)`.
+The signed path is the backend path (`/agent/...`); a proxy must forward it unchanged (or strip only a
+prefix that is part of the enrolled URL).
+
+**Server URL.** The setup dialog in the web app shows it in the enroll command:
+
+| Environment | `--url` | |
+|---|---|---|
+| Production | The public Nginx or Router address (`VITE_AGENT_URL` in the web app) | The application server is never exposed; only Nginx/Router is reachable from lab computers |
+| Development | The backend directly (`VITE_API_URL`), with `--insecure` for `http://` | |
+
+The URL is not a secret: every request is signed with the computer's own key and enrollment needs a
+one-time grant. The agent holds no backend API key and no production backend address in its settings.
+The proxy must pass the path, the body and the `X-Agent-*`, `Idempotency-Key` and `If-None-Match`
+headers unchanged (requests are signed over the body hash) and allow bodies of at least 256 KiB.
+Redirects are never followed. Implementation: `src/core/agent_api/signing.py`, `client.py`.
+
+## Feature mapping
+
+| Agent feature | Before | Now (owner) |
+|---|---|---|
+| Liveness | — | `POST /agent/heartbeat` every 60 s (`BackendModel.send_heartbeat`) |
+| Live activity | `PUT /api/labs/lab-status/sku/{sku}` | `PATCH /agent/equipment/activity` on change and every 5 min (`ActivityCtrl`) |
+| Remote session log | `POST /api/labs/lab-sessions/log` | `POST /agent/session-logs` through a bounded on-disk outbox, retried with the same `event_key` (`RemoteSessionCtrl`) |
+| Booking login | `GET /api/labs/lab-bookings/code/{code}` + local checks | `validate` (read-only) → AD lookup → `check-in`, booking becomes `in_progress` (`LoginCtrl`) |
+| Booking follow-up | same GET every 5 min | `validate`; not eligible means the booking ended (`SessionTimer`) |
+| Extend booking | `PATCH /api/labs/lab-bookings/{id}` | `POST /agent/bookings/actions/extend` with readable refusal reasons (`BookingUpdateCtrl`) |
+| End booking | `PATCH ... status=done` | `POST /agent/bookings/actions/complete` |
+| Monitored devices | filter list from `/api/labs/lab-computers`, events to `/api/labs/lab-monitoring` | the policy's `expected_devices` (watch list, registered PnP IDs) → only those devices, as complete snapshots to `POST /agent/device-observations/actions/report` with `hardware_ids`; the backend matches registered IDs (`PnpDeviceCollector`, `DeviceObservationReporter`) |
+| Monitoring policy | — | `GET /agent/monitoring-policy` every 2 min with ETag (`MonitoringCtrl`) |
+| License checks | — | `GET /agent/license-checks` with ETag, then each due run to `POST /agent/license-checks/{key}/actions/report` (`LicenseCollector`, `BackendModel`); the backend matches by license serial and updates expiry and version |
+| Backend available | `GET <backend root>` | `GET /agent/info` |
+
+The backend decides booking eligibility (approval, this computer's bench, time window) and answers
+every refusal identically, so the login screen cannot say *why* a code was refused. Bookings are
+identified by code only.
+
+### Device observations
+
+Equipment is recognised by the **PnP device instance ID** a coordinator registered on the unit
+(`EquipmentHardwareId`), never by the inventory's `serial_number`. The monitoring policy lists the
+computer's expected devices with their IDs; the agent scans `Win32_PnPEntity` every 5 s and reports
+only those devices (collector `pnp`), as complete snapshots:
+
+- a change counts after 3 matching scans; the first scan after a new watch list is the baseline,
+  so no false "disconnected" is sent while debouncing;
+- unchanged devices are resent every half `freshness_seconds` (60 s) to keep them fresh;
+- the sequence is the wall clock in milliseconds, never below the last one sent;
+- each batch (`Idempotency-Key` + body) is stored in `agent\observations_pnp.json` before sending
+  and resent byte-identical until acknowledged;
+- the policy (watch list) is re-read every 2 minutes; `304` when unchanged.
+
+**Registering a new device:** in the Device Scan dialog an administrator sees each device's PnP
+instance path (live plug/unplug log) and can **Push** a discovery snapshot (collector `discovery`) of
+the connected USB devices that are not on the watch list. They appear in Lab Monitoring; **Link**
+registers the device's PnP ID on the chosen unit, and the next policy sync puts it on the watch list.
+Discovery rows never count as presence, reporting or alerts.
+
+## Removed, because the backend has no agent route
+
+| Feature | What happens now |
+|---|---|
+| Computer information (OS, IP, disks, system info) | Not reported. Backend `PATCH /agent/equipment/state` is proposed only; re-add when it ships |
+| Storage quota upload | Still measured; written to `<sharing root>\.system\quota\quota_report.json` only |
+| USB filter list (`monitored_devices` JSON), audit events | Replaced by registered PnP IDs and expected devices |
+| Admin list from `/api/user-groups` | `login.admin_usernames` in `app_settings.yml` |
+| OTP via the backend's `/api/send-otp` | OTP is sent through the service gateway only |
+| Shared API key | Removed; the server URL comes from the enrolled identity |
+
+## Behaviour changes
+
+- An administrator login without a booking reports activity `maintaining` (it used to come from a
+  booking project named "maintenance", which the agent API no longer returns).
+- Booking codes: only the `BOOKING-` prefix is normalised; the rest is matched exactly by the backend.
+- The packaged `LabMango.exe` attaches to the terminal it was started from for `enroll`, `status`
+  and `unenroll`, so output and prompts are visible.
+
+## Not done yet
+
+- **Service install** (`labmango-agent service install`): the agent remains a per-user tray
+  application; the backend's device design expects a privileged service for enforcement.
+
+## Dependencies
+
+`pyproject.toml` (root plus the workspace members `tools`, `src/pkgman`, `src/utils`, `src/mvc`,
+`src/service_gateway`) and `uv.lock` are the single source; `setup_venv.py` runs
+`uv sync --all-packages --frozen`. The old `requirements.txt` had drifted and was removed.
+
+## Tests
+
+```
+uv run pytest -q                # unit tests (no network); CI runs them on Windows
+LABMANGO_E2E_URL=... LABMANGO_E2E_AGENT_UID=... LABMANGO_E2E_GRANT=eg_... \
+LABMANGO_E2E_BOOKING_CODE=... pytest tests/integration -q   # against a running backend
+```
+
+The end-to-end test enrolls, heartbeats, reports activity, validates / checks in / extends /
+completes a booking, sends an idempotent session log, reads the monitoring policy with ETag and
+replays an observation batch, then checks that a wrong key gets `401`.

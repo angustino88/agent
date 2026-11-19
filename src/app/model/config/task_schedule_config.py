@@ -1,14 +1,25 @@
 from src.mvc.task_schedule import Schedule
 
+
 class TaskScheduleConfig:
-    HEALTH_PING           = Schedule(type="interval", every=10, unit='minutes')
-    AUTO_UPDATE           = Schedule(type="interval", every=60, unit='minutes', run_at_start=True)
-    USER_STORAGE_MONITOR  = Schedule(type="interval", every=12, unit='hours',   run_at_start=True)
-    COMPUTER_INFO_MONITOR = Schedule(type="interval", every=4,  unit='hours',   run_at_start=True)
-    DEVICE_STATE_REFRESH  = Schedule(type="interval", every=60, unit='seconds', run_at_start=True)
-    LAB_SESSION_MONITOR   = Schedule(type="interval", every=1,  unit='seconds')
-    LAB_STATUS_MONITOR    = Schedule(type="interval", every=1,  unit='seconds')
-    LOGIN_STATE_MONITOR   = Schedule(type="interval", every=1,  unit='seconds')
-    REFRESH_SERVICE_GATEWAY_TOKEN  = Schedule(type="interval", every=30, unit='minutes')
-    SYNC_SERVICE_GATEWAY           = Schedule(type="interval", every=10, unit='minutes', run_at_start=True)
-    PHYSICAL_DEVICE_MONITOR = 5 # seconds
+    # Backend
+    AGENT_HEARTBEAT = Schedule(
+        type="interval", every=60, unit="seconds", run_at_start=True
+    )  # also delivers queued session logs
+    ACTIVITY_MONITOR = Schedule(type="interval", every=1, unit="seconds")
+    SESSION_TIMER = Schedule(type="interval", every=1, unit="seconds")
+    LOGIN_EVENT_MONITOR = Schedule(type="interval", every=1, unit="seconds")
+    MONITORING_POLICY_SYNC = Schedule(type="interval", every=2, unit="minutes", run_at_start=True)  # watch list; 304 when unchanged
+    PNP_DEVICE_SCAN = 5  # seconds between PnP scans (collector thread)
+    LICENSE_CHECKS = Schedule(
+        type="interval", every=15, unit="minutes", run_at_start=True
+    )  # each check has its own interval
+
+    # Service gateway
+    GATEWAY_TOKEN_REFRESH = Schedule(type="interval", every=30, unit="minutes")
+    GATEWAY_CONFIG_SYNC = Schedule(type="interval", every=10, unit="minutes", run_at_start=True)
+
+    # Local
+    STORAGE_QUOTA_MONITOR = Schedule(type="interval", every=12, unit="hours", run_at_start=True)
+    HEALTH_PING = Schedule(type="interval", every=10, unit="minutes")
+    AUTO_UPDATE = Schedule(type="interval", every=60, unit="minutes", run_at_start=True)

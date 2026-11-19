@@ -89,8 +89,12 @@ class ClientRequest:
         logger: Any = None,
         printer: Any = None,
         token_refresh_callback: Optional[Callable[[], bool]] = None,
+        verify: bool | str = False,
     ):
+        """``verify``: TLS certificate check passed to ``requests`` (``False``, ``True`` or a CA
+        bundle path). Defaults to ``False`` for backward compatibility with existing consumers."""
         self._base_url = base_url.rstrip("/")
+        self._verify = verify
         self._auth_value = auth_value
         self._auth_scheme = auth_scheme
         self._logger = logger
@@ -115,6 +119,15 @@ class ClientRequest:
     @base_url.setter
     def base_url(self, value: str) -> None:
         self._base_url = (value or "").rstrip("/")
+
+    @property
+    def verify(self) -> bool | str:
+        """TLS verification setting used for every request."""
+        return self._verify
+
+    @verify.setter
+    def verify(self, value: bool | str) -> None:
+        self._verify = value
 
     @property
     def auth_value(self) -> str | None:
@@ -227,7 +240,7 @@ class ClientRequest:
             url=url,
             data=json.dumps(send_body) if send_body is not None else None,
             headers=self._get_headers(),
-            verify=False,
+            verify=self._verify,
             timeout=timeout,
         )
         return ClientResponse(False, self._parse_response(r), r)

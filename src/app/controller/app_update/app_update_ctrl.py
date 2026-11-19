@@ -1,6 +1,5 @@
 import os
 import sys
-import time
 import subprocess
 import logging
 import contextlib
@@ -10,7 +9,7 @@ from PySide6.QtCore import Signal, QMetaObject, Qt, QTimer, QObject, Slot
 
 from src.mvc.base_controller import BaseController
 from src.mvc.slot_guard import slot_guard
-from src.mvc.task_schedule import task, Schedule
+from src.mvc.task_schedule import task
 from src.pkgman.installer import PackageInstaller
 from src.pkgman.updater import PackageUpdater, UpdateStage
 from src.app.model.update_checker import PackageUpdate
@@ -45,7 +44,7 @@ class AppUpdateCtrl(BaseController):
         self._app_settings = self.model.config_model.app_settings
         self._logging_model = self.model.logging_model
         self._logger = self.model.logging_model.system_logger
-        self._lab_api_model = self.model.lab_api_model
+        self._gateway_model = self.model.gateway_model
         self._message_box = self.view.message_box
         self._app_update_view = self.view.app_update_view
         self._app_update_view.ui.update_btn.clicked.connect(self.apply_update)
@@ -117,7 +116,7 @@ class AppUpdateCtrl(BaseController):
         max_len = 800
         truncated_len = len(raw) > max_len
         disp = raw[:max_len] + "... (truncated)" if truncated_len else raw
-        lines_all = [l for l in disp.splitlines() if l.strip()] or ["(empty)"]
+        lines_all = [line for line in disp.splitlines() if line.strip()] or ["(empty)"]
         max_lines = 12
         truncated_cl = len(lines_all) > max_lines
         return lines_all[:max_lines], (truncated_len or truncated_cl)
@@ -128,7 +127,7 @@ class AppUpdateCtrl(BaseController):
         label_w = max(len(k) for k, _ in rows)
         def fmt(k, v): return f"{k:<{label_w}}: {v}"
         lines = ["=== Update Available ===", *(fmt(k, v) for k, v in rows)]
-        widest = max(len(l) for l in lines[1:]) if len(lines) > 1 else len(lines[0])
+        widest = max(len(line) for line in lines[1:]) if len(lines) > 1 else len(lines[0])
         lines.append("-" * widest)
         lines.append("Changelog (preview):")
         lines.extend(changelog_lines)
@@ -240,8 +239,8 @@ class AppUpdateCtrl(BaseController):
             return
         self._app_update_view.console.clear()
         self._app_update_view.set_stage(None)
-        self._console_emit(f"Checking for updates...", "info")
-        t = UpdateCheckThread(self._lab_api_model, self._app_config.APP_VERSION, self._logger)
+        self._console_emit("Checking for updates...", "info")
+        t = UpdateCheckThread(self._gateway_model, self._app_config.APP_VERSION, self._logger)
         self._update_thread = t
         t.done.connect(self._on_update_thread_done)
         t.exception.connect(self._on_update_thread_exception)
@@ -377,7 +376,7 @@ class AppUpdateCtrl(BaseController):
         current_version = self._app_config.APP_VERSION
         try:
             try:
-                pkg_update: PackageUpdate = self._lab_api_model.check_package_update(current_version)
+                pkg_update: PackageUpdate = self._gateway_model.check_package_update(current_version)
             except Exception as e:
                 self._logger.debug(f"Auto-update check failed: {e}")
                 return

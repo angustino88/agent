@@ -18,36 +18,19 @@ class ServerConfigView(QDialog, BaseView, metaclass=metaclass_factory(QDialog, B
     def _ui_init(self):
         pass                                  
     
-    def set_prod_server(self, frontend_url, backend_url, api_key):
+    def set_backend(self, frontend_url: str, backend_url: str, agent_uid: str):
+        """Lab Mango web app, the department backend and this computer's agent identity."""
         self.ui.prod_frontend_edit.setText(frontend_url)
         self.ui.prod_backend_edit.setText(backend_url)
-        self.ui.prod_apikey_edit.setText(api_key)
-    
-    def get_prod_server(self):
-        return {
-            'frontend_url': self.ui.prod_frontend_edit.text(),
-            'backend_url': self.ui.prod_backend_edit.text(),
-            'api_key': self.ui.prod_apikey_edit.text()
-        }
-    
-    def set_service_gateway(self, backend_url, api_key):
-        self.ui.service_gateway_backend_edit.setText(backend_url)
-        self.ui.service_gateway_token_edit.setText(api_key)
-    
-    def get_service_gateway(self):
-        return {
-            'backend_url': self.ui.service_gateway_backend_edit.text(),
-            'token': self.ui.service_gateway_token_edit.text()
-        }
-    
+        self.ui.prod_apikey_edit.setText(agent_uid)
+
+    def set_service_gateway(self, url: str, token: str):
+        self.ui.service_gateway_backend_edit.setText(url)
+        self.ui.service_gateway_token_edit.setText(token)
+
+
     def set_otp_master_code(self, code):
         self.ui.otp_master_code_edit.setText(code)
     
-    def get_otp_master_code(self):
-        return self.ui.otp_master_code_edit.text()
-
     def set_safe_mode(self, enabled: bool):
         self.ui.safe_mode_edit.setText(str(enabled))
-    
-    def get_safe_mode(self):
-        return self.ui.safe_mode_edit.text()

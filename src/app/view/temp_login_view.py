@@ -5,7 +5,6 @@ from src.utils.metaclass import metaclass_factory
 from src.mvc.base_view import BaseView
 from src.mvc.event_logger import log_events
 from src.app.view.widgets.TempLoginGui import Ui_TempLoginDialog
-from src.app.model.types.booking_status import BookingStatus
 
 
 @log_events('showEvent', 'closeEvent', logger_name='view.logger')

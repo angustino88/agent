@@ -1,7 +1,7 @@
 import traceback
 from typing import Optional
 from src.mvc.slot_guard import slot_guard
-from src.mvc.task_schedule import task, Schedule
+from src.mvc.task_schedule import task
 from src.mvc.base_controller import BaseController
 from src.app.controller.health_check.health_check_thread import HealthCheckThread
 from src.app.model.config.task_schedule_config import TaskScheduleConfig
@@ -19,8 +19,8 @@ class HealthCheckCtrl(BaseController):
         self._initialized = False
         self._logger = None
         self._health_info_view = None
-        self._lab_api_model = None
-        self._lab_session_controller = None
+        self._backend_model = None
+        self._gateway_model = None
         self._health_check_thread: Optional[HealthCheckThread] = None
 
     def init(self):
@@ -28,7 +28,8 @@ class HealthCheckCtrl(BaseController):
             return self
         self._logger = self.model.logging_model.system_logger
         self._health_info_view = self.view.health_info_view
-        self._lab_api_model = self.model.lab_api_model
+        self._backend_model = self.model.backend_model
+        self._gateway_model = self.model.gateway_model
         self.view.main_window_view.ui.health_check_btn.clicked.connect(self.show_dialog)
         self._initialized = True
         return self
@@ -60,7 +61,8 @@ class HealthCheckCtrl(BaseController):
             self._health_info_view.clear()
 
         self._health_check_thread = HealthCheckThread(
-            self._lab_api_model,
+            self._backend_model,
+            self._gateway_model,
             self.model.runner,
             self.view.runner,
             self.bus_request("get:runner")
@@ -107,7 +109,7 @@ class HealthCheckCtrl(BaseController):
             # Avoid launching full thread; perform a quick backend check
             alive = False
             try:
-                alive = self._lab_api_model.check_backend_alive()
+                alive = self._backend_model.check_alive()
             except Exception:
                 pass
             return "Backend alive" if alive else "Backend not responding"
@@ -134,7 +136,7 @@ class HealthCheckCtrl(BaseController):
         self._stop_thread()
 
     @slot_guard(on_exception=_handle_exception)
-    def append_session_info(self):
+    def append_remote_session(self):
         """
         Append latest session info line (without restarting a full check).
         Useful if UI wants a quick refresh portion.
@@ -142,7 +144,7 @@ class HealthCheckCtrl(BaseController):
         if not self._initialized:
             return
         try:
-            sess = self.bus_request("get:session_info")
-            self._health_info_view.console(f"Session: {sess}")
+            session = self.bus_request("get:remote_session")
+            self._health_info_view.console(f"Session: {session}")
         except Exception as e:
             self._handle_exception(e)

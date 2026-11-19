@@ -84,13 +84,13 @@ class Ui_DeviceScanDialog(object):
 
     def retranslateUi(self, DeviceScanDialog):
         DeviceScanDialog.setWindowTitle(QCoreApplication.translate("DeviceScanDialog", u"Device Scan", None))
-        self.groupBox.setTitle(QCoreApplication.translate("DeviceScanDialog", u"Device Monitor List", None))
+        self.groupBox.setTitle(QCoreApplication.translate("DeviceScanDialog", u"Expected devices", None))
         ___qtablewidgetitem = self.device_table.horizontalHeaderItem(0)
         ___qtablewidgetitem.setText(QCoreApplication.translate("DeviceScanDialog", u"Status", None))
         ___qtablewidgetitem1 = self.device_table.horizontalHeaderItem(1)
         ___qtablewidgetitem1.setText(QCoreApplication.translate("DeviceScanDialog", u"Name", None))
         ___qtablewidgetitem2 = self.device_table.horizontalHeaderItem(2)
-        ___qtablewidgetitem2.setText(QCoreApplication.translate("DeviceScanDialog", u"ID", None))
+        ___qtablewidgetitem2.setText(QCoreApplication.translate("DeviceScanDialog", u"PnP ID", None))
         self.refresh_btn.setText(QCoreApplication.translate("DeviceScanDialog", u"Refresh", None))
         self.push_btn.setText(QCoreApplication.translate("DeviceScanDialog", u"Push", None))
         self.groupBox_2.setTitle(QCoreApplication.translate("DeviceScanDialog", u"Device Scan", None))

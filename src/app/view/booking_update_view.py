@@ -1,100 +1,83 @@
-from PySide6.QtCore import QDateTime
-from PySide6.QtWidgets import QDialog
-from src.utils.metaclass import metaclass_factory
-from src.mvc.base_view import BaseView
-from src.mvc.event_logger import log_events
-from src.app.view.widgets.BookingUpdateGui import Ui_BookingUpdateDialog
-from src.app.model.types.booking_status import BookingStatus
+from __future__ import annotations
+
 from datetime import datetime
 
+from PySide6.QtCore import QDateTime
+from PySide6.QtWidgets import QDialog
 
-@log_events('showEvent', 'closeEvent', logger_name='view.logger')
+from src.app.model.types.booking import BookingAction
+from src.app.view.widgets.BookingUpdateGui import Ui_BookingUpdateDialog
+from src.mvc.base_view import BaseView
+from src.mvc.event_logger import log_events
+from src.utils.metaclass import metaclass_factory
+
+
+@log_events("showEvent", "closeEvent", logger_name="view.logger")
 class BookingUpdateView(QDialog, BaseView, metaclass=metaclass_factory(QDialog, BaseView)):
     def __init__(self):
         super().__init__()
         self.ui = Ui_BookingUpdateDialog()
         self.ui.setupUi(self)
-        self._from_dt: QDateTime | None = None
-        self._connect_signals()
+        self.ui.label_8.setText("Action")
+        self.ui.label_6.setText("Starts at:")
+        self.ui.label_7.setText("Ends at:")
+        self.ui.booking_status_combo.currentIndexChanged.connect(lambda _: self._on_action_changed())
+        self.ui.to_datetime_edit.dateTimeChanged.connect(lambda _: self._validate())
 
     def init(self):
-        self._app_config = self.model.config_model.app_config
-        self._ui_init()
-
-    def _ui_init(self):
         self.ui.booking_status_combo.clear()
-        self.ui.booking_status_combo.addItems([
-            BookingStatus.IN_PROGRESS.value,
-            BookingStatus.DONE.value
-        ])
-        self.set_minimum_to_datetime_now()
+        for action in BookingAction:
+            self.ui.booking_status_combo.addItem(action.value, action)
+        self.set_minimum_ends_at_now()
 
-    def _connect_signals(self):
-        self.ui.booking_status_combo.currentTextChanged.connect(self._on_status_change)
-        self.ui.to_datetime_edit.dateTimeChanged.connect(self._validate_range)
+    # ------------------------------------------------------------------ internals
 
-    def _on_status_change(self, status: str):
-        is_done = status == BookingStatus.DONE.value
-        # When DONE we ignore custom end-time edits (disable input)
-        self.ui.to_datetime_edit.setEnabled(not is_done)
-        if is_done and self._from_dt:
-            # Force to time = from time to prevent accidental extension
-            self.ui.to_datetime_edit.setDateTime(self._from_dt)
-        self._validate_range()
+    def _on_action_changed(self) -> None:
+        # Ending a booking keeps its booked end time; only extending edits it.
+        self.ui.to_datetime_edit.setEnabled(self.get_action() is BookingAction.EXTEND)
+        self._validate()
 
-    def _validate_range(self):
-        from_dt = self.ui.from_datetime_edit.dateTime()
-        to_dt = self.ui.to_datetime_edit.dateTime()
-        ok = to_dt >= from_dt
-        self._apply_valid_style(ok)
+    def _validate(self) -> bool:
+        ok = self.get_action() is not BookingAction.EXTEND or (
+            self.ui.to_datetime_edit.dateTime() > self.ui.from_datetime_edit.dateTime()
+        )
+        self.ui.to_datetime_edit.setStyleSheet("" if ok else "QDateTimeEdit { border: 2px solid #d9534f; }")
         return ok
 
-    def _apply_valid_style(self, ok: bool):
-        widget = self.ui.to_datetime_edit
-        if ok:
-            widget.setStyleSheet("")
-        else:
-            widget.setStyleSheet("QDateTimeEdit { border: 2px solid #d9534f; }")
+    @staticmethod
+    def _to_qt(value: datetime) -> QDateTime:
+        return QDateTime.fromSecsSinceEpoch(int(value.timestamp()))
 
-    def _to_python(self, qdt: QDateTime) -> datetime:
-        return qdt.toPython()
+    # ------------------------------------------------------------------ API
 
-    def set_minimum_to_datetime_now(self):
-        now = QDateTime.currentDateTime()
-        self.ui.to_datetime_edit.setMinimumDateTime(now)
+    def set_minimum_ends_at_now(self) -> None:
+        self.ui.to_datetime_edit.setMinimumDateTime(QDateTime.currentDateTime())
 
-    def set_booking_status(self, status: str):
-        idx = self.ui.booking_status_combo.findText(status)
-        if idx >= 0:
-            self.ui.booking_status_combo.setCurrentIndex(idx)
-        self._on_status_change(self.get_booking_status())
+    def set_window(self, starts_at: datetime | None, ends_at: datetime | None) -> None:
+        if starts_at:
+            self.ui.from_datetime_edit.setDateTime(self._to_qt(starts_at))
+        if ends_at:
+            self.ui.to_datetime_edit.setDateTime(self._to_qt(ends_at))
+        self._validate()
 
-    def get_booking_status(self) -> str:
-        return self.ui.booking_status_combo.currentText()
+    def set_action(self, action: BookingAction) -> None:
+        index = self.ui.booking_status_combo.findData(action)
+        if index >= 0:
+            self.ui.booking_status_combo.setCurrentIndex(index)
+        self._on_action_changed()
 
-    def set_from_datetime(self, from_datetime: QDateTime | datetime):
-        if isinstance(from_datetime, datetime):
-            from_datetime = QDateTime.fromSecsSinceEpoch(int(from_datetime.timestamp()))
-        self._from_dt = from_datetime
-        self.ui.from_datetime_edit.setDateTime(from_datetime)
-        # Ensure to >= from
-        if self.ui.to_datetime_edit.dateTime() < from_datetime:
-            self.ui.to_datetime_edit.setDateTime(from_datetime)
-        self._validate_range()
+    def get_action(self) -> BookingAction:
+        # Qt returns item data of a ``str`` enum as a plain ``str``: convert it back, or an identity
+        # check against BookingAction.EXTEND fails (end time disabled, Update would end the booking).
+        data = self.ui.booking_status_combo.currentData()
+        try:
+            return BookingAction(data)
+        except ValueError:
+            return BookingAction.EXTEND
 
-    def set_to_datetime(self, to_datetime: QDateTime | datetime):
-        if isinstance(to_datetime, datetime):
-            to_datetime = QDateTime.fromSecsSinceEpoch(int(to_datetime.timestamp()))
-        self.ui.to_datetime_edit.setDateTime(to_datetime)
-        self._validate_range()
+    def get_ends_at(self) -> datetime | None:
+        """The chosen end time (naive local time), or ``None`` when it is not after the start."""
+        return self.ui.to_datetime_edit.dateTime().toPython() if self._validate() else None
 
-    def get_to_datetime(self) -> datetime | None:
-        if not self._validate_range():
-            return None
-        return self._to_python(self.ui.to_datetime_edit.dateTime())
-
-    def is_valid(self) -> bool:
-        return self._validate_range()
-
-    def set_enabled_update(self, enabled: bool):
+    def set_update_enabled(self, enabled: bool) -> None:
         self.ui.update_btn.setEnabled(enabled)

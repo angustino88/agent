@@ -1,6 +1,5 @@
 import sys
 from src.mvc.slot_guard import slot_guard
-from src.mvc.task_schedule import task, Schedule
 from src.mvc.base_controller import BaseController
 
 class AppInfoCtrl(BaseController):

@@ -1,7 +1,6 @@
 import os
 import sys
 from pathlib import Path
-from PySide6.QtWidgets import QApplication
 
 def get_app_root() -> Path:
     """
@@ -21,6 +20,27 @@ def get_app_root() -> Path:
 APP_ROOT = get_app_root()
 sys.path.insert(0, str(APP_ROOT))
 os.environ["LABMANGO_ROOT"] = str(APP_ROOT)
+
+def attach_parent_console() -> None:
+    """The packaged app is a windowed executable without a console. When it is started from a
+    terminal for a command-line sub-command, attach to that terminal so output and prompts show."""
+    if os.name != "nt" or sys.stdout is not None:
+        return
+    import ctypes
+    ATTACH_PARENT_PROCESS = -1
+    if ctypes.windll.kernel32.AttachConsole(ATTACH_PARENT_PROCESS):
+        sys.stdout = open("CONOUT$", "w", encoding="utf-8", buffering=1)
+        sys.stderr = open("CONOUT$", "w", encoding="utf-8", buffering=1)
+        sys.stdin = open("CONIN$", "r", encoding="utf-8")
+
+
+# Command line sub-commands (`LabMango enroll|status|unenroll ...`) run without starting Qt.
+if __name__ == '__main__' and len(sys.argv) > 1 and sys.argv[1] in ("enroll", "status", "unenroll"):
+    attach_parent_console()
+    from src.agent_cli import main as agent_cli_main
+    sys.exit(agent_cli_main(sys.argv[1:]))
+
+from PySide6.QtWidgets import QApplication
 
 from src.mvc.router import Router
 from src.app.view.main_view import MainView

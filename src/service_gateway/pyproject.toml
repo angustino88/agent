@@ -10,7 +10,12 @@ requires-python = ">=3.12"
 dependencies = [
     "requests>=2.32",
     "urllib3>=2.0",
+    # imports ..utils.http_client: must sit next to utils under the same parent package
+    "utils",
 ]
+
+[tool.uv.sources]
+utils = { workspace = true }
 
 [tool.setuptools]
 packages = ["service_gateway"]

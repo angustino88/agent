@@ -39,7 +39,7 @@
     </rect>
    </property>
    <property name="title">
-    <string>Device Monitor List</string>
+    <string>Expected devices</string>
    </property>
    <widget class="QTableWidget" name="device_table">
     <property name="geometry">
@@ -87,7 +87,7 @@
     </column>
     <column>
      <property name="text">
-      <string>ID</string>
+      <string>PnP ID</string>
      </property>
     </column>
    </widget>

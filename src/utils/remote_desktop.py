@@ -12,8 +12,11 @@ class RemoteDesktop:
         """
         Get the FQDN (fully qualified domain name) of the remote desktop client computer.
         """
+        ip = RemoteDesktop.get_client_ip()
+        if not ip:
+            return None  # socket.getfqdn(None) would return this computer's own name
         try:
-            return socket.getfqdn(RemoteDesktop.get_client_ip())
+            return socket.getfqdn(ip)
         except Exception:
             return None
 

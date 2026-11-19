@@ -1,13 +1,11 @@
 from ...utils.otp import OTPService
 
+
 class OTPManager:
-    def __init__(
-        self,
-        primary_sender,
-        secondary_sender=None,
-        length=6,
-        validity_seconds=300
-    ):
+    """Generates one-time passwords locally and delivers them through a sender
+    (an object with ``send_otp_event(username, otp)``), falling back to a second sender if given."""
+
+    def __init__(self, primary_sender, secondary_sender=None, length=6, validity_seconds=300):
         self._primary_sender = primary_sender
         self._secondary_sender = secondary_sender
         self._otp_service = OTPService(length=length, validity_seconds=validity_seconds)

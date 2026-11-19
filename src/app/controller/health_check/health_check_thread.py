@@ -5,14 +5,16 @@ from src.mvc.base_thread import BaseThread, EHandle
 class HealthCheckThread(BaseThread):
     health_info = Signal(str)
 
-    def __init__(self, 
-        api_model,
+    def __init__(self,
+        backend_model,
+        gateway_model,
         model_runner,
         view_runner,
         controller_runner
     ):
         super().__init__(loop=False, e_handle=EHandle.ONLY_E_CHANGE)
-        self.api_model = api_model
+        self._backend_model = backend_model
+        self._gateway_model = gateway_model
         self.runners = {
             "Model Tasks": model_runner,
             "View Tasks": view_runner,
@@ -31,9 +33,9 @@ class HealthCheckThread(BaseThread):
     def check_services(self):
         """Check front-end and back-end availability."""
         services = [
-            ("Front-end", self.api_model.frontend_url, self.api_model.check_frontend_alive),
-            ("Back-end", self.api_model.backend_url, self.api_model.check_backend_alive),
-            ("Service Gateway", self.api_model.service_gateway_url, self.api_model.check_service_gateway_alive),
+            ("Web app", self._backend_model.frontend_url, self._backend_model.check_frontend_alive),
+            ("Backend", self._backend_model.backend_url or "(not enrolled)", self._backend_model.check_alive),
+            ("Service gateway", self._gateway_model.url, self._gateway_model.check_alive),
         ]
 
         for name, url, alive_func in services:

@@ -15,6 +15,17 @@ conventions (JWT auth, token refresh, package management).
 | Standard service | `StandardGatewayService` | Extends `BaseGatewayService`; adds `login`, `refresh_token`, `get_latest_package`, `check_package_update` |
 | App service | *your subclass* | Extends `StandardGatewayService`; sets `base_path` and adds app-specific endpoints |
 
+## TLS
+
+`GatewayClient` takes two transport-security options (defaults keep the historic behaviour):
+
+| Option | Default | Production with a TLS gateway |
+|---|---|---|
+| `verify` | `False` (no certificate check) | `True`, or a CA bundle path for an internal CA |
+| `allow_http_fallback` | `True` (retry on `http://` when HTTPS fails) | `False`, so tokens are never sent unencrypted |
+
+Depends on the sibling `utils` package (`..utils.http_client`); both must live under the same parent package.
+
 ---
 
 ## Quick start

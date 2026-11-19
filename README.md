@@ -1,6 +1,41 @@
-# Lab Mango
+# Lab Mango Agent
 
-Lab Management Professional
+The Lab Mango agent runs on each lab computer. It gates logins with a booking code or a user
+one-time password, times the session, and reports live activity, remote sessions and USB devices
+to the department's Lab Mango backend through the signed agent API.
+
+- Architecture, layout, glossary and conventions: [docs/architecture.md](docs/architecture.md)
+- Backend contract, feature mapping and what changed: [docs/agent-backend-integration.md](docs/agent-backend-integration.md)
+- Build parameters: [docs/build-deployment-guide.md](docs/build-deployment-guide.md)
+
+## Quick start (development, Windows, Python 3.12)
+
+```powershell
+python setup_venv.py                 # uv sync --all-packages --frozen into .venv
+.venv\Scripts\python.exe src\main.py   # or run_app.bat
+```
+
+## Enroll a computer
+
+An operator creates the agent in Lab Mango (computing equipment → Agent → Set up) and receives an
+agent UID and a one-time grant. On the computer, as the account that runs the agent:
+
+```powershell
+LabMango.exe enroll --url https://<backend>/api/<dept> --agent-uid <uuid>   # prompts for the grant
+LabMango.exe status
+```
+
+From source use `python src\main.py enroll ...`. Exit codes, TLS options and unenrolling are
+described in [docs/agent-backend-integration.md](docs/agent-backend-integration.md).
+
+## Tests
+
+```powershell
+uv run pytest -q
+uv run ruff check src/core src/agent_cli.py tests
+```
+
+CI (`.github/workflows/ci.yml`) runs both on Windows.
 
 ---
 
@@ -74,9 +109,9 @@ This document provides detailed, professional instructions for building, maintai
 
 ### ⚙️ Configuration
 
-- All build and runtime configuration is in [build_config.py](http://_vscodecontentref_/0).
+- Build configuration: `prj/config/builder/build_config.py`; version: `prj/config/version/version_config.py`.
 - Update version numbers, quotas, and other settings as needed.
-- Task intervals for monitoring and background jobs are set in [task_schedule_config.py](http://_vscodecontentref_/1).
+- Background task intervals: `src/app/model/config/task_schedule_config.py`.
 - Environment variables and build environment setup are managed in `builder_env.bat` and related scripts.
 
 ---
@@ -84,8 +119,7 @@ This document provides detailed, professional instructions for building, maintai
 ### 🧹 Maintenance
 
 - **Logs and Artifacts:**  
-  - Build logs are in [log](http://_vscodecontentref_/2).
-  - Build artifacts (e.g., zip packages, meta.json) are in [app](http://_vscodecontentref_/3).
+  - Build logs and artifacts (zip packages, `meta.json`) are written under `prj/build/`.
 - **Regularly review and rotate keys** as part of your security policy.
 
 ---

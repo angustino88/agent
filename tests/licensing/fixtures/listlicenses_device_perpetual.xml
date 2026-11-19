@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="Codepage - 437"?>
+<Containers xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <LicenseContainer>
+    <Licenses>
+      <VectorLicense>
+        <UnitCounter xsi:nil="true" />
+        <VolumeQuota xsi:nil="true" />
+        <VolumeUnit xsi:nil="true" />
+        <VolumeMethod xsi:nil="true" />
+        <IsCountrySpecific>false</IsCountrySpecific>
+        <TotalLicenses>0</TotalLicenses>
+        <UsedLicenses>0</UsedLicenses>
+        <FreeLicenses>0</FreeLicenses>
+        <IsBorrowable>false</IsBorrowable>
+        <UserName xsi:nil="true" />
+        <Quantity>1</Quantity>
+        <DeviceName>007113-585343</DeviceName>
+        <IsPerpetual>true</IsPerpetual>
+        <Committer xsi:nil="true" />
+        <Scope xsi:nil="true" />
+        <ContractId>0000000000</ContractId>
+        <LicenseRestriction>Perpetual</LicenseRestriction>
+        <IsActivatableInVirtualMachine>false</IsActivatableInVirtualMachine>
+        <IsActivatableOnDongle>false</IsActivatableOnDongle>
+        <IsActivatableOnPC>false</IsActivatableOnPC>
+        <IsActivatableOnVNI>false</IsActivatableOnVNI>
+        <Server xsi:nil="true" />
+        <FinalExpirationDateString>9999-12-31T23:59:59</FinalExpirationDateString>
+        <VectorLicenseId>55100045010</VectorLicenseId>
+        <ReactivationPeriod>12</ReactivationPeriod>
+        <LicenseId>2557941</LicenseId>
+        <MaterialNumber>55100</MaterialNumber>
+        <ProductText>CANalyzer PRO</ProductText>
+        <ExpirationDateString>2027-04-09T23:59:59</ExpirationDateString>
+        <BorrowExpiration xsi:nil="true" />
+        <MaxVersion>15.0</MaxVersion>
+        <IsReactivatable>true</IsReactivatable>
+        <AGBPeriod>90</AGBPeriod>
+        <AGBCounter>3</AGBCounter>
+        <IsNameListCompatible>false</IsNameListCompatible>
+        <ItemVersion>0</ItemVersion>
+        <LicenseType>Device_Locked</LicenseType>
+        <BindingType>DEVICE</BindingType>
+        <IsUserDefined>false</IsUserDefined>
+        <IsActivatable>false</IsActivatable>
+        <IsMigration>false</IsMigration>
+        <InMigration>false</InMigration>
+        <NameListMode>User</NameListMode>
+        <NameListId>0</NameListId>
+      </VectorLicense>
+    </Licenses>
+  </LicenseContainer>
+</Containers>

@@ -75,25 +75,19 @@ class SessionInfoView(QDialog, BaseView, metaclass=metaclass_factory(QDialog, Ba
         self.update_btn_style()
         self.clear_info()
     
-    def set_info(self, info):
-        self.ui.booking_number_edit.setText(str(getattr(info, "booking_code", "")))
-        self.ui.remote_user_edit.setText(str(getattr(info, "remote_user", "")))
-        self.ui.remote_ip_edit.setText(str(getattr(info, "remote_ip", "")))
-        self.ui.remote_computer_edit.setText(str(getattr(info, "remote_computer", "")))
-        from_dt = getattr(info, "from_datetime", None)
-        to_dt = getattr(info, "to_datetime", None)
-        self.ui.from_datetime_edit.setText(
-            from_dt.strftime("%m/%d/%Y, %H:%M") if from_dt else "None"
-        )
-        self.ui.to_datetime_edit.setText(
-            to_dt.strftime("%m/%d/%Y, %H:%M") if to_dt else "None"
-        )
-        # Optionally set timeleft if info has it
-        timeleft = getattr(info, "timeleft", None)
-        if timeleft is not None:
-            self.set_timeleft(timeleft)
-        else:
-            self.set_timeleft(0)
+    @staticmethod
+    def _format(value) -> str:
+        return value.strftime("%m/%d/%Y, %H:%M") if value else "-"
+
+    def set_session(self, session, ends_at=None):
+        """Show a :class:`RemoteSession`; ``ends_at`` overrides the booking end (temporary sessions)."""
+        self.ui.booking_number_edit.setText(session.booking_code or "-")
+        self.ui.remote_user_edit.setText(session.remote_user)
+        self.ui.remote_ip_edit.setText(session.remote_ip)
+        self.ui.remote_computer_edit.setText(session.remote_computer)
+        self.ui.from_datetime_edit.setText(self._format(session.starts_at))
+        self.ui.to_datetime_edit.setText(self._format(ends_at or session.ends_at))
+        self.set_minutes_left(0)
 
     def clear_info(self):
         self.ui.booking_number_edit.clear()
@@ -104,17 +98,15 @@ class SessionInfoView(QDialog, BaseView, metaclass=metaclass_factory(QDialog, Ba
         self.ui.to_datetime_edit.clear()
         self.ui.hour_lcdNumber.display(0)
         self.ui.minute_lcdNumber.display(0)
-    
-    def set_to_datetime(self, to_datetime: str):
-        self.ui.to_datetime_edit.setText(
-            to_datetime.strftime("%m/%d/%Y, %H:%M") if to_datetime else "None"
-        )
 
-    def set_timeleft(self, timeleft: int):
-        hour, minute = divmod(int(timeleft), 60)
-        self.ui.hour_lcdNumber.display(hour)
-        self.ui.minute_lcdNumber.display(minute)
-    
+    def set_ends_at(self, ends_at):
+        self.ui.to_datetime_edit.setText(self._format(ends_at))
+
+    def set_minutes_left(self, minutes_left: int):
+        hours, minutes = divmod(int(minutes_left), 60)
+        self.ui.hour_lcdNumber.display(hours)
+        self.ui.minute_lcdNumber.display(minutes)
+
     def show_dialog(self):
         self.show()
         if self.isMinimized():
