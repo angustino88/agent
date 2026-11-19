@@ -12,7 +12,7 @@ Planned: [bench device and license monitoring](design/bench-device-and-license-m
 |---|---|---|
 | Department backend (lab-mango) | Signed agent API `/agent/...` with the enrolled identity | `BackendModel` |
 | Service gateway | JWT login; configuration, OTP delivery, package updates | `GatewayModel` |
-| Router (Nginx) | The agent's server URL comes from the service gateway (`prod-server-config` `backend_url`) at enrollment; the web app shows none; requests are signed for `/agent/...` | — |
+| Frontend Nginx / Router | The agent's server URL is the Lab Mango frontend address; its Nginx forwards `/agent/` to the backend or Router, so the backend address is never on the computer; requests are signed for `/agent/...` | — |
 | Active Directory | User lookup at login (`pyad`) | `LoginCtrl` |
 | Windows | Login/logout events, WMI (USB, hardware), RDP client info | controllers / `ComputerModel` |
 
